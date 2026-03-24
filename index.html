@@ -1,0 +1,41 @@
+<div id="panel_measure" class="card">
+    <div class="label">Absorber / Material Testing</div>
+    
+    <div class="stats-grid">
+        <div class="stat-box"><div class="label">Corrected Rate</div><div id="mCorr" class="value">0</div></div>
+        <div class="stat-box" style="border-color: #ffdd57;"><div class="label">% Absorbed</div><div id="mAbsorb" class="value">0%</div></div>
+        <div class="stat-box"><div class="label">Timer</div><div id="mTimer" class="value">0s</div></div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+        <button id="mBtn" class="ctrl-btn btn-start" onclick="toggleMeasure()" style="flex:2;">START TIMER</button>
+        <button onclick="setReference()" class="ctrl-btn btn-neutral" style="flex:1; font-size:0.7em;">SET AS REFERENCE<br>(NO ABSORBER)</button>
+    </div>
+</div>
+
+<script>
+    let referenceRate = 0;
+
+    function setReference() {
+        // Takes the current corrected rate and stores it as the 100% baseline
+        let elap = (Date.now() - mStart) / 1000;
+        if (elap > 0) {
+            referenceRate = (counts - (bgRate * elap)) / elap;
+            alert("Reference Rate Set: " + referenceRate.toFixed(2) + " CPS (Unblocked)");
+        }
+    }
+
+    // Update the measurement timer logic to include the calculation
+    function updateMeasureDisplay(elap) {
+        let correctedTotal = Math.max(0, counts - (bgRate * elap));
+        let currentRate = correctedTotal / elap;
+        
+        document.getElementById('mCorr').innerText = currentRate.toFixed(2);
+        
+        if (referenceRate > 0) {
+            // Formula: % Absorbed = (1 - (Current / Reference)) * 100
+            let absorbed = (1 - (currentRate / referenceRate)) * 100;
+            document.getElementById('mAbsorb').innerText = Math.max(0, absorbed).toFixed(1) + "%";
+        }
+    }
+</script>
