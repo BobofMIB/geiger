@@ -1,41 +1,171 @@
-<div id="panel_measure" class="card">
-    <div class="label">Absorber / Material Testing</div>
-    
-    <div class="stats-grid">
-        <div class="stat-box"><div class="label">Corrected Rate</div><div id="mCorr" class="value">0</div></div>
-        <div class="stat-box" style="border-color: #ffdd57;"><div class="label">% Absorbed</div><div id="mAbsorb" class="value">0%</div></div>
-        <div class="stat-box"><div class="label">Timer</div><div id="mTimer" class="value">0s</div></div>
-    </div>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AQA Geiger Master</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: system-ui; background: #0a0a0a; color: #eee; padding: 15px; }
+        .card { background: #181818; padding: 15px; border-radius: 10px; border: 1px solid #333; margin-bottom: 15px; }
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+        .tabs button { flex: 1; padding: 12px; background: #333; color: #aaa; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; }
+        .tabs button.active { background: #ffdd57; color: #000; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+        .stat-box { background: #111; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #222; }
+        .label { font-size: 0.65em; color: #00d1b2; text-transform: uppercase; }
+        .value { font-size: 1.5em; font-weight: bold; font-family: monospace; }
+        .ctrl-btn { width: 100%; padding: 12px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
+        .btn-start { background: #00d1b2; color: #000; }
+        .btn-stop { background: #ff3860; color: #fff; }
+        canvas { max-height: 220px; margin-top: 15px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
 
+<div class="card" style="display:flex; justify-content: space-between; align-items: center;">
+    <div style="color:#ffdd57; font-weight:bold;">AQA GEIGER MASTER</div>
+    <button id="bleBtn" onclick="connectBLE()" style="background:#00d1b2; border:none; padding:8px 15px; border-radius:4px; font-weight:bold;">CONNECT</button>
+</div>
+
+<div class="card" style="border-color: #00d1b2;">
+    <div class="label">Step 1: Background Count (60s)</div>
+    <div class="stats-grid" style="margin-top:10px;">
+        <div class="stat-box"><div class="label">Timer</div><div id="bgTimer" class="value">60s</div></div>
+        <div class="stat-box"><div class="label">Counts</div><div id="bgTotal" class="value">0</div></div>
+        <div class="stat-box"><div class="label">Rate (CPS)</div><div id="bgRateDisp" class="value">0.00</div></div>
+    </div>
+    <button id="bgBtn" class="ctrl-btn btn-start" onclick="startBackground()">START CALIBRATION</button>
+</div>
+
+<div class="tabs">
+    <button id="tab1" class="active" onclick="setTab('measure')">Measurements</button>
+    <button id="tab2" onclick="setTab('inverse')">Inverse Square</button>
+    <button id="tab3" onclick="setTab('decay')">Decay Curve</button>
+</div>
+
+<div id="panel_measure" class="card">
+    <div class="stats-grid">
+        <div class="stat-box"><div class="label">Rate (CPS)</div><div id="mRate" class="value">0.0</div></div>
+        <div class="stat-box" style="border: 1px solid #ffdd57;"><div class="label">% Absorbed</div><div id="mAbs" class="value">0%</div></div>
+        <div class="stat-box"><div class="label">Time</div><div id="mTime" class="value">0s</div></div>
+    </div>
     <div style="display:flex; gap:10px;">
-        <button id="mBtn" class="ctrl-btn btn-start" onclick="toggleMeasure()" style="flex:2;">START TIMER</button>
-        <button onclick="setReference()" class="ctrl-btn btn-neutral" style="flex:1; font-size:0.7em;">SET AS REFERENCE<br>(NO ABSORBER)</button>
+        <button id="mBtn" class="ctrl-btn btn-start" onclick="toggleMeasure()" style="flex:2">START SAMPLING</button>
+        <button onclick="setRef()" class="ctrl-btn" style="flex:1; background:#444; color:#fff; font-size:0.7em;">SET REF (100%)</button>
     </div>
 </div>
 
-<script>
-    let referenceRate = 0;
+<div id="panel_inverse" class="card hidden">
+    <div style="display:flex; gap:10px; margin-bottom:15px;">
+        <input type="number" id="distIn" value="10" style="width:60px; background:#000; color:#fff; border:1px solid #444; padding:5px;">
+        <button onclick="recordInverse()" class="btn-start" style="flex:1; border-radius:4px; border:none; font-weight:bold;">RECORD DISTANCE</button>
+    </div>
+    <canvas id="invChart"></canvas>
+</div>
 
-    function setReference() {
-        // Takes the current corrected rate and stores it as the 100% baseline
-        let elap = (Date.now() - mStart) / 1000;
-        if (elap > 0) {
-            referenceRate = (counts - (bgRate * elap)) / elap;
-            alert("Reference Rate Set: " + referenceRate.toFixed(2) + " CPS (Unblocked)");
-        }
+<div id="panel_decay" class="card hidden">
+    <button id="dBtn" class="ctrl-btn btn-start" onclick="toggleDecay()">START LOGGING</button>
+    <canvas id="decayChart"></canvas>
+</div>
+
+<script>
+    let counts = 0, bgRate = 0, refRate = 0, currentTab = 'measure';
+    let bleChar, mInt, dInt, chartInv, chartDecay;
+    let invPoints = [], decayPoints = [];
+
+    function setTab(t) {
+        currentTab = t;
+        ['measure','inverse','decay'].forEach(p => document.getElementById('panel_'+p).classList.toggle('hidden', p!==t));
+        ['tab1','tab2','tab3'].forEach((b,i) => document.getElementById(b).classList.toggle('active', ['measure','inverse','decay'][i]===t));
     }
 
-    // Update the measurement timer logic to include the calculation
-    function updateMeasureDisplay(elap) {
-        let correctedTotal = Math.max(0, counts - (bgRate * elap));
-        let currentRate = correctedTotal / elap;
-        
-        document.getElementById('mCorr').innerText = currentRate.toFixed(2);
-        
-        if (referenceRate > 0) {
-            // Formula: % Absorbed = (1 - (Current / Reference)) * 100
-            let absorbed = (1 - (currentRate / referenceRate)) * 100;
-            document.getElementById('mAbsorb').innerText = Math.max(0, absorbed).toFixed(1) + "%";
-        }
+    async function connectBLE() {
+        const device = await navigator.bluetooth.requestDevice({ filters: [{ name: 'NanoPhys_S3' }], optionalServices: ["19b10000-e8f2-537e-4f6c-d104768a1214"] });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
+        const dataC = await service.getCharacteristic("19b10001-e8f2-537e-4f6c-d104768a1214");
+        document.getElementById('bleBtn').innerText = "ONLINE";
+        await dataC.startNotifications();
+        dataC.addEventListener('characteristicvaluechanged', e => {
+            const str = new TextDecoder().decode(e.target.value);
+            if(str === "RAD:1") counts++;
+        });
+    }
+
+    function startBackground() {
+        counts = 0; let s = 60;
+        let itv = setInterval(() => {
+            s--; document.getElementById('bgTimer').innerText = s+"s";
+            document.getElementById('bgTotal').innerText = counts;
+            if(s<=0) {
+                clearInterval(itv); bgRate = counts/60;
+                document.getElementById('bgRateDisp').innerText = bgRate.toFixed(2);
+                document.getElementById('bgBtn').innerText = "CALIBRATED";
+                counts = 0;
+            }
+        }, 1000);
+    }
+
+    function toggleMeasure() {
+        if(!mInt) {
+            counts = 0; let start = Date.now();
+            mInt = setInterval(() => {
+                let elap = (Date.now()-start)/1000;
+                let curRate = (counts/elap) - bgRate;
+                document.getElementById('mRate').innerText = curRate.toFixed(1);
+                document.getElementById('mTime').innerText = elap.toFixed(0)+"s";
+                if(refRate > 0) {
+                    let abs = (1 - (curRate/refRate)) * 100;
+                    document.getElementById('mAbs').innerText = Math.max(0, abs).toFixed(1) + "%";
+                }
+            }, 1000);
+            document.getElementById('mBtn').innerText = "STOP SAMPLING";
+        } else { clearInterval(mInt); mInt = null; document.getElementById('mBtn').innerText = "START SAMPLING"; }
+    }
+
+    function setRef() {
+        let elap = parseInt(document.getElementById('mTime').innerText);
+        refRate = (counts/elap) - bgRate;
+        alert("Reference set: " + refRate.toFixed(2) + " CPS");
+    }
+
+    function recordInverse() {
+        let d = parseFloat(document.getElementById('distIn').value);
+        invPoints.push({x: d, y: counts}); // Using raw count for simplicity in 10s intervals
+        counts = 0;
+        updateInvChart();
+    }
+
+    function toggleDecay() {
+        if(!dInt) {
+            counts = 0; let start = Date.now();
+            dInt = setInterval(() => {
+                let elap = (Date.now()-start)/1000;
+                decayPoints.push({x: elap, y: counts});
+                updateDecayChart();
+            }, 5000);
+            document.getElementById('dBtn').innerText = "STOP LOGGING";
+        } else { clearInterval(dInt); dInt = null; }
+    }
+
+    function updateInvChart() {
+        if(chartInv) chartInv.destroy();
+        chartInv = new Chart(document.getElementById('invChart'), {
+            type: 'scatter',
+            data: { datasets: [{ label: 'Counts', data: invPoints, backgroundColor: '#00d1b2' }]},
+            options: { scales: { x: { title: {display:true, text:'Distance (cm)'}} }}
+        });
+    }
+
+    function updateDecayChart() {
+        if(chartDecay) chartDecay.destroy();
+        chartDecay = new Chart(document.getElementById('decayChart'), {
+            type: 'line',
+            data: { datasets: [{ label: 'Decay', data: decayPoints, borderColor: '#ffdd57', tension: 0.3 }]},
+            options: { scales: { x: { title: {display:true, text:'Time (s)'}} }}
+        });
     }
 </script>
+</body>
+</html>
