@@ -18,16 +18,18 @@
         .btn-ble { background: var(--accent); color: #000; width: 100%; }
         .btn-start { background: #2ea44f; color: white; }
         .btn-stop { background: var(--danger); color: white; }
+        .btn-mini { padding: 6px; font-size: 0.7em; background: #444; color: #fff; margin-top: 8px; width: 100%; }
         
         .cpm-display { font-size: 5em; text-align: center; font-weight: 800; margin: 0; color: var(--accent); font-family: monospace; line-height: 1; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
-        .stats-box { background: #000; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: center; }
+        .stats-box { background: #000; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: center; display: flex; flex-direction: column; justify-content: center; }
         
         .hidden { display: none; }
         .graph-container { height: 320px; width: 100%; margin-top: 10px; }
         .timer-big { font-size: 4em; color: var(--warn); font-family: monospace; }
         
         .controls-row { display: flex; justify-content: space-between; align-items: center; background: #000; padding: 10px; border-radius: 8px; margin-top: 10px; border: 1px solid #444; }
+        input[type="number"] { background: #000; color: var(--accent); border: 1px solid #444; padding: 5px; border-radius: 4px; width: 60px; text-align: center; }
     </style>
 </head>
 <body>
@@ -47,6 +49,31 @@
         <div class="card">
             <div class="label" style="text-align:center">Live CPM (Fast Response)</div>
             <div id="demoCpm" class="cpm-display">0</div>
+            
+            <div class="grid">
+                <!-- Cumulative Pulse Counter -->
+                <div class="stats-box">
+                    <small>Cumulative Pulses</small>
+                    <div id="demoCountDisp" style="font-size: 2em; font-family: monospace; color: var(--info);">0</div>
+                    <button class="btn btn-mini" onclick="resetDemoCount()">Reset</button>
+                </div>
+
+                <!-- Timed Count Control -->
+                <div class="stats-box">
+                    <small>Timed Interval (s)</small>
+                    <div style="margin: 5px 0;">
+                        <input type="number" id="intervalTime" value="10">
+                    </div>
+                    <button id="timedBtn" class="btn btn-mini" style="background: var(--info); color:#000;" onclick="startTimedInterval()">Start Timer</button>
+                </div>
+
+                <!-- Timed Result -->
+                <div class="stats-box">
+                    <small id="timedLabel">Result (---)</small>
+                    <div id="timedResult" style="font-size: 1.5em; font-family: monospace; color: var(--warn);">--</div>
+                    <div id="timedTimer" style="font-size: 0.8em; color: #8b949e;">Ready</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -55,7 +82,7 @@
         <div class="card">
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <button id="hlStartBtn" class="btn btn-start" style="flex:1" onclick="toggleHalfLife()">Start Experiment</button>
-                <button class="btn btn-stop" style="flex:1" onclick="resetHalfLife()">Reset</button>
+                <button class="btn btn-stop" style="flex:1" onclick="resetHalfLife()">Wipe Data</button>
             </div>
             <div id="halfCpm" class="cpm-display">0</div>
             <div class="grid">
@@ -92,7 +119,7 @@
         </div>
     </div>
 
-    <!-- GRAPH CARD (Hidden on BG Tab) -->
+    <!-- GLOBAL GRAPH -->
     <div id="graphCard" class="card">
         <div class="controls-row">
             <label style="font-size:0.8em; color:var(--warn); cursor:pointer;">
@@ -110,6 +137,13 @@
     let pDataChar, radChart;
     let totalCounts = 0, pulseTimestamps = [];
     let demoHistory = [], halfLifeHistory = [];
+    let demoRawCount = 0;
+    
+    // Timed Interval Variables
+    let timedCountActive = false;
+    let timedPulses = 0;
+    let timedSecondsLeft = 0;
+
     let backgroundCPM = 0;
     let isSamplingBG = false, bgPulses = 0;
     let isHLRunning = false, hlStartTime = null;
@@ -121,11 +155,44 @@
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-' + t).classList.remove('hidden');
         event.currentTarget.classList.add('active');
-        
-        // Hide graph on background tab
         document.getElementById('graphCard').style.display = (t === 'bg') ? 'none' : 'block';
-        
         updateGraph();
+    }
+
+    function resetDemoCount() {
+        demoRawCount = 0;
+        document.getElementById('demoCountDisp').innerText = "0";
+    }
+
+    function startTimedInterval() {
+        if(timedCountActive) return;
+        const duration = parseInt(document.getElementById('intervalTime').value);
+        if(isNaN(duration) || duration <= 0) return;
+
+        timedCountActive = true;
+        timedPulses = 0;
+        timedSecondsLeft = duration;
+        document.getElementById('timedBtn').disabled = true;
+        document.getElementById('timedBtn').style.opacity = "0.5";
+        document.getElementById('timedResult').innerText = "counting...";
+        document.getElementById('timedLabel').innerText = `Running (${duration}s)`;
+
+        let timer = setInterval(() => {
+            timedSecondsLeft--;
+            document.getElementById('timedTimer').innerText = timedSecondsLeft + "s left";
+            
+            if(timedSecondsLeft <= 0) {
+                clearInterval(timer);
+                timedCountActive = false;
+                document.getElementById('timedBtn').disabled = false;
+                document.getElementById('timedBtn').style.opacity = "1";
+                document.getElementById('timedTimer').innerText = "Complete";
+                
+                let avgCpm = Math.round((timedPulses / duration) * 60);
+                document.getElementById('timedResult').innerText = timedPulses + " cnts";
+                document.getElementById('timedLabel').innerText = `Avg: ${avgCpm} CPM`;
+            }
+        }, 1000);
     }
 
     function toggleHalfLife() {
@@ -181,6 +248,8 @@
                 for(let i=0; i<hits; i++) {
                     pulseTimestamps.push(Date.now());
                     totalCounts++;
+                    demoRawCount++;
+                    if(timedCountActive) timedPulses++; // Feed the timed counter
                     if(isSamplingBG) {
                         bgPulses++;
                         document.getElementById('bgCounts').innerText = bgPulses + " Pulses";
@@ -220,15 +289,14 @@
             let currentRawCPM = pulseTimestamps.length;
             let currentCorrCPM = Math.max(0, currentRawCPM - backgroundCPM);
 
-            // Update Displays
-            document.getElementById('demoCpm').innerText = document.getElementById('correctToggle').checked ? currentCorrCPM : currentRawCPM;
-            document.getElementById('halfCpm').innerText = document.getElementById('correctToggle').checked ? currentCorrCPM : currentRawCPM;
+            let isCorrected = document.getElementById('correctToggle').checked;
+            document.getElementById('demoCpm').innerText = isCorrected ? currentCorrCPM : currentRawCPM;
+            document.getElementById('halfCpm').innerText = isCorrected ? currentCorrCPM : currentRawCPM;
+            document.getElementById('demoCountDisp').innerText = demoRawCount;
 
-            // Demo logic (Rolling 60s)
             demoHistory.push({ x: now, y: currentRawCPM });
             if(demoHistory.length > 60) demoHistory.shift();
 
-            // Half-life logic
             if(isHLRunning && hlStartTime) {
                 let elapsedSec = (now - hlStartTime) / 1000;
                 let h = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
@@ -236,14 +304,12 @@
                 let s = String(Math.floor(elapsedSec % 60)).padStart(2, '0');
                 document.getElementById('timeVal').innerText = `${h}:${m}:${s}`;
 
-                // Record data point every 10 seconds to halfLifeHistory
                 if(Math.floor(elapsedSec) % 10 === 0) {
                     let point = { x: (elapsedSec / 60).toFixed(2), y: currentRawCPM };
-                    // Avoid duplicate timestamps
                     if(halfLifeHistory.length === 0 || halfLifeHistory[halfLifeHistory.length-1].x !== point.x) {
                         halfLifeHistory.push(point);
                         calculateHalfLife();
-                        if(Math.floor(elapsedSec) % 300 === 0) { // Log to table every 5m
+                        if(Math.floor(elapsedSec) % 300 === 0) {
                              let row = `<tr><td>${(elapsedSec/60).toFixed(0)}</td><td>${currentRawCPM}</td><td>${currentCorrCPM}</td></tr>`;
                              document.getElementById('logBody').innerHTML += row;
                         }
@@ -255,22 +321,16 @@
     }
 
     function calculateHalfLife() {
-        if(halfLifeHistory.length < 20) return; // Need data to estimate
-        
-        let background = backgroundCPM;
+        if(halfLifeHistory.length < 20) return;
         let startPoint = halfLifeHistory[0];
         let currentPoint = halfLifeHistory[halfLifeHistory.length - 1];
-        
-        let N0 = startPoint.y - background;
-        let Nt = currentPoint.y - background;
+        let N0 = startPoint.y - backgroundCPM;
+        let Nt = currentPoint.y - backgroundCPM;
         let t = parseFloat(currentPoint.x) - parseFloat(startPoint.x);
-
         if(N0 > 10 && Nt > 5 && N0 > Nt) {
             let lambda = Math.log(N0 / Nt) / t;
             let halfLife = Math.log(2) / lambda;
-            if(halfLife > 0 && halfLife < 500) {
-                document.getElementById('hlCalc').innerText = halfLife.toFixed(1) + " min";
-            }
+            if(halfLife > 0 && halfLife < 500) document.getElementById('hlCalc').innerText = halfLife.toFixed(1) + " min";
         }
     }
 
@@ -280,16 +340,13 @@
         let isCorrected = document.getElementById('correctToggle').checked;
         
         if(activeTab.includes("Fast")) {
-            radChart.options.scales.x.type = 'linear';
             radChart.options.scales.x.title.text = "Seconds Ago";
-            // Map demoHistory to "seconds ago" format
             let now = Date.now();
             radChart.data.datasets[0].data = demoHistory.map(p => ({
                 x: Math.round((p.x - now)/1000), 
                 y: isCorrected ? Math.max(0, p.y - backgroundCPM) : p.y
             }));
         } else {
-            radChart.options.scales.x.type = 'linear';
             radChart.options.scales.x.title.text = "Minutes";
             radChart.data.datasets[0].data = halfLifeHistory.map(p => ({
                 x: p.x, 
@@ -323,7 +380,7 @@
         let blob = new Blob([csv], { type: 'text/csv' });
         let a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'half_life_results.csv';
+        a.download = 'radiation_data.csv';
         a.click();
     }
 </script>
