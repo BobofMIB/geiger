@@ -2,94 +2,101 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AQA Half-Life Practical: Radon Decay</title>
+    <title>AQA Physics Radiation Master</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --accent: #39ff14; --text: #c9d1d9; --warn: #ffdd57; --danger: #f85149; }
+        :root { --bg: #0d1117; --card: #161b22; --accent: #39ff14; --text: #c9d1d9; --warn: #ffdd57; --danger: #f85149; --info: #58a6ff; }
         body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 10px; margin: 0; display: flex; flex-direction: column; align-items: center; }
-        .container { width: 100%; max-width: 800px; display: flex; flex-direction: column; gap: 10px; }
+        .container { width: 100%; max-width: 850px; display: flex; flex-direction: column; gap: 10px; }
         
         .tabs { display: flex; gap: 5px; background: #000; padding: 5px; border-radius: 8px; border: 1px solid #333; }
-        .tab-btn { flex: 1; background: transparent; color: #8b949e; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .tab-btn { flex: 1; background: transparent; color: #8b949e; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.8em; }
         .tab-btn.active { background: #21262d; color: var(--accent); border-bottom: 2px solid var(--accent); }
 
         .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-        .btn { padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 0.8em; }
+        .btn { padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; }
         .btn-ble { background: var(--accent); color: #000; width: 100%; }
         
-        .cpm-display { font-size: 4.5em; text-align: center; font-weight: 800; margin: 0; color: var(--accent); font-family: monospace; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .cpm-display { font-size: 5em; text-align: center; font-weight: 800; margin: 0; color: var(--accent); font-family: monospace; line-height: 1; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
         .stats-box { background: #000; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: center; }
         
-        .log-table-wrap { max-height: 200px; overflow-y: auto; background: #000; border-radius: 8px; border: 1px solid #444; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85em; text-align: left; }
+        .log-table-wrap { max-height: 250px; overflow-y: auto; background: #000; border-radius: 8px; border: 1px solid #444; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
         th { background: #111; color: var(--accent); padding: 8px; position: sticky; top: 0; }
-        td { padding: 8px; border-bottom: 1px solid #222; }
+        td { padding: 8px; border-bottom: 1px solid #222; text-align: center; }
 
         .hidden { display: none; }
-        .graph-container { height: 250px; width: 100%; }
+        .graph-container { height: 300px; width: 100%; }
+        .timer-big { font-size: 4em; color: var(--warn); font-family: monospace; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button id="bleBtn" class="btn btn-ble" onclick="connectBLE()">1. Connect & Resume Experiment</button>
+    <button id="bleBtn" class="btn btn-ble" onclick="connectBLE()">Connect Geiger Counter</button>
 
     <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('main')">Live Half-Life</button>
-        <button class="tab-btn" onclick="switchTab('data')">Data Log (AQA Table)</button>
-        <button class="tab-btn" onclick="switchTab('bg')">Background</button>
+        <button class="tab-btn active" onclick="switchTab('demo')">Fast Demo (Absorbers)</button>
+        <button class="tab-btn" onclick="switchTab('half')">Half-Life (Radon)</button>
+        <button class="tab-btn" onclick="switchTab('bg')">BG Calibration</button>
+        <button class="tab-btn" onclick="switchTab('data')">Data Table</button>
     </div>
 
-    <!-- MAIN MONITOR -->
-    <div id="tab-main" class="tab-content">
+    <!-- FAST DEMO TAB -->
+    <div id="tab-demo" class="tab-content">
         <div class="card">
-            <div style="display:flex; justify-content: space-between; align-items:center;">
-                <label class="label">Corrected Count Rate</label>
-                <div style="font-size:0.7em; color:var(--warn)">Auto-Saving Active</div>
-            </div>
-            <div id="cpmVal" class="cpm-display">0</div>
-            <div id="bgStatus" style="text-align:center; color:var(--warn); font-size:0.75em;">Background: 0 CPM</div>
-        </div>
-
-        <div class="grid" style="margin-top:10px;">
-            <div class="stats-box"><div class="label">Elapsed</div><div id="timeVal" style="font-size:1.5em; font-family:monospace;">00:00:00</div></div>
-            <div class="stats-box"><div class="label">Total Counts</div><div id="totalVal" style="font-size:1.5em; font-family:monospace;">0</div></div>
-            <div class="stats-box"><div class="label">Status</div><div id="statusMsg" style="font-size:0.9em; color:var(--accent);">Ready</div></div>
+            <div class="label" style="text-align:center">Live Corrected CPM (Fast Response)</div>
+            <div id="demoCpm" class="cpm-display">0</div>
+            <p style="font-size:0.75em; color:var(--info); text-align:center;">Updates every 2s • Use for Alpha/Beta/Gamma absorption</p>
         </div>
     </div>
 
-    <!-- DATA LOG TAB -->
-    <div id="tab-data" class="tab-content hidden">
+    <!-- HALF LIFE TAB -->
+    <div id="tab-half" class="tab-content hidden">
         <div class="card">
-            <div class="label">AQA Required Practical 10: Data Log</div>
-            <p style="font-size:0.7em; color:#8b949e; margin-bottom:10px;">Snapshots taken every 5 minutes (or manual).</p>
-            <div class="log-table-wrap">
-                <table id="logTable">
-                    <thead><tr><th>Time (min)</th><th>Raw CPM</th><th>Corrected CPM</th></tr></thead>
-                    <tbody id="logBody"></tbody>
-                </table>
+            <div id="halfCpm" class="cpm-display">0</div>
+            <div class="grid" style="margin-top:10px;">
+                <div class="stats-box"><small>Session Time</small><div id="timeVal">00:00:00</div></div>
+                <div class="stats-box"><small>Corrected Counts</small><div id="totalVal">0</div></div>
+                <div class="stats-box"><small>Background</small><div id="bgDisp">0 CPM</div></div>
             </div>
-            <button class="btn" style="margin-top:10px; background:#444; color:#fff; width:100%" onclick="takeManualSnapshot()">Take Manual Snapshot</button>
         </div>
     </div>
 
     <!-- BACKGROUND TAB -->
     <div id="tab-bg" class="tab-content hidden">
         <div class="card" style="text-align:center;">
-            <div class="label">Background Pulses</div>
-            <div id="bgPulseDisplay" style="font-size: 3em; font-family: monospace; color:var(--warn);">000</div>
-            <button class="btn" style="background:#333; color:#fff;" onclick="startBackgroundSample(100)">Start 100s Sample</button>
-            <div id="bgTimerStatus" style="margin-top:10px; font-size:0.8em;">Measure before starting the balloon experiment.</div>
+            <div class="label">Background Sampling</div>
+            <div id="bgTimer" class="timer-big">000</div>
+            <div class="label">Seconds Remaining</div>
+            <div id="bgCounts" style="font-size: 2em; color: var(--accent); margin: 10px 0;">0 Pulses</div>
+            <div class="grid">
+                <button class="btn" style="background:#333; color:#fff;" onclick="startBG(60)">60s Test</button>
+                <button class="btn" style="background:#333; color:#fff;" onclick="startBG(100)">100s Test</button>
+            </div>
         </div>
     </div>
 
-    <!-- GRAPH -->
-    <div class="card" style="flex-grow:1; display:flex; flex-direction:column;">
+    <!-- DATA TAB -->
+    <div id="tab-data" class="tab-content hidden">
+        <div class="card">
+            <div class="log-table-wrap">
+                <table id="logTable">
+                    <thead><tr><th>Time (m)</th><th>Raw CPM</th><th>Corrected</th></tr></thead>
+                    <tbody id="logBody"></tbody>
+                </table>
+            </div>
+            <button class="btn" style="width:100%; margin-top:10px; background:var(--info); color:#000;" onclick="downloadCSV()">Export to Excel (CSV)</button>
+        </div>
+    </div>
+
+    <!-- GLOBAL GRAPH -->
+    <div class="card">
         <div class="graph-container"><canvas id="radChart"></canvas></div>
-        <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <button class="btn" style="background:var(--danger); color:#fff; flex:1" onclick="clearAllData()">Wipe All Data</button>
-            <button class="btn" style="background:#30363d; color:#fff; flex:1" onclick="downloadCSV()">Export CSV</button>
+        <div style="display:flex; justify-content:space-between; margin-top:10px;">
+            <button class="btn" style="background:var(--danger); color:#fff; font-size:0.7em;" onclick="clearData()">Reset Experiment</button>
+            <label style="font-size:0.8em;"><input type="checkbox" id="audioTog" checked> Audio Click</label>
         </div>
     </div>
 </div>
@@ -97,23 +104,34 @@
 <script>
     let pDataChar, radChart;
     let totalCounts = 0, startTime = null, pulseTimestamps = [], rawHistory = [];
-    let backgroundCPM = localStorage.getItem('bgCPM') ? parseInt(localStorage.getItem('bgCPM')) : 0;
-    let isSamplingBG = false;
-    let lastSnapshotTime = 0;
-
-    // Load session from Storage
-    if(localStorage.getItem('startTime')) {
-        startTime = parseInt(localStorage.getItem('startTime'));
-        rawHistory = JSON.parse(localStorage.getItem('rawHistory')) || [];
-        totalCounts = parseInt(localStorage.getItem('totalCounts')) || 0;
-        renderLogTable();
-    }
+    let backgroundCPM = localStorage.getItem('bgCPM') || 0;
+    let isSamplingBG = false, bgPulses = 0;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function switchTab(t) {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-' + t).classList.remove('hidden');
         event.currentTarget.classList.add('active');
+        if(t === 'demo') {
+            radChart.options.scales.x.title.text = "Seconds";
+            radChart.update();
+        } else if(t === 'half') {
+            radChart.options.scales.x.title.text = "Minutes";
+            radChart.update();
+        }
+    }
+
+    function playClick() {
+        if (!document.getElementById('audioTog').checked) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square'; osc.frequency.value = 3200;
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.03);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.03);
     }
 
     async function connectBLE() {
@@ -132,16 +150,36 @@
                     pulseTimestamps.push(Date.now());
                     totalCounts++;
                     if(isSamplingBG) {
-                        document.getElementById('bgPulseDisplay').innerText = String(parseInt(document.getElementById('bgPulseDisplay').innerText) + 1).padStart(3, '0');
+                        bgPulses++;
+                        document.getElementById('bgCounts').innerText = bgPulses + " Pulses";
                     }
+                    playClick();
                 }
             });
             if(!startTime) startTime = Date.now();
-            localStorage.setItem('startTime', startTime);
-            document.getElementById('bleBtn').innerText = "DATA SYNCED";
+            document.getElementById('bleBtn').innerText = "ONLINE";
             document.getElementById('bleBtn').classList.add('btn-success');
             initLogic();
         } catch (err) { console.log(err); }
+    }
+
+    function startBG(duration) {
+        if(isSamplingBG) return;
+        isSamplingBG = true; bgPulses = 0;
+        let left = duration;
+        document.getElementById('bgTimer').innerText = left;
+        let itvl = setInterval(() => {
+            left--;
+            document.getElementById('bgTimer').innerText = left;
+            if(left <= 0) {
+                clearInterval(itvl);
+                backgroundCPM = Math.round((bgPulses / duration) * 60);
+                localStorage.setItem('bgCPM', backgroundCPM);
+                isSamplingBG = false;
+                alert("Background Set: " + backgroundCPM + " CPM");
+                switchTab('demo');
+            }
+        }, 1000);
     }
 
     function initLogic() {
@@ -151,67 +189,49 @@
             let now = Date.now();
             let elapsedSec = (now - startTime) / 1000;
             
-            // Format 00:00:00
+            // Displays
+            pulseTimestamps = pulseTimestamps.filter(t => (now - t) <= 60000);
+            let rawCPM = (elapsedSec < 60) ? Math.floor((totalCounts / elapsedSec) * 60) : pulseTimestamps.length;
+            let corrected = Math.max(0, rawCPM - backgroundCPM);
+
+            document.getElementById('demoCpm').innerText = corrected;
+            document.getElementById('halfCpm').innerText = corrected;
+            document.getElementById('bgDisp').innerText = backgroundCPM + " CPM";
+            document.getElementById('totalVal').innerText = totalCounts;
+
+            // Timer
             let h = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
             let m = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0');
             let s = String(Math.floor(elapsedSec % 60)).padStart(2, '0');
             document.getElementById('timeVal').innerText = `${h}:${m}:${s}`;
-            document.getElementById('totalVal').innerText = totalCounts;
 
-            // CPM
-            pulseTimestamps = pulseTimestamps.filter(t => (now - t) <= 60000);
-            let rawCPM = (elapsedSec < 60) ? Math.floor((totalCounts / elapsedSec) * 60) : pulseTimestamps.length;
-            document.getElementById('cpmVal').innerText = Math.max(0, rawCPM - backgroundCPM);
-            document.getElementById('bgStatus').innerText = `Background: ${backgroundCPM} CPM (Corrected)`;
-
-            // Auto-Log every 5 minutes (300 seconds)
-            if (Math.floor(elapsedSec / 300) > lastSnapshotTime) {
-                lastSnapshotTime = Math.floor(elapsedSec / 300);
-                takeManualSnapshot();
-            }
-
-            // Graph Update (Every 30 seconds for long-term clarity)
-            if (Math.floor(elapsedSec) % 30 === 0) {
-                rawHistory.push({ x: Math.floor(elapsedSec / 60), y: rawCPM });
-                if (rawHistory.length > 500) rawHistory.shift();
-                localStorage.setItem('rawHistory', JSON.stringify(rawHistory));
-                localStorage.setItem('totalCounts', totalCounts);
-                updateGraph();
+            // Graphing
+            let activeTab = document.querySelector('.tab-btn.active').innerText;
+            if(activeTab.includes("Fast")) {
+                if(Math.floor(elapsedSec) % 2 === 0) {
+                    rawHistory.push({ x: Math.floor(elapsedSec), y: corrected });
+                    if(rawHistory.length > 60) rawHistory.shift();
+                    updateGraph();
+                }
+            } else {
+                if(Math.floor(elapsedSec) % 30 === 0) {
+                    rawHistory.push({ x: (elapsedSec / 60).toFixed(1), y: corrected });
+                    updateGraph();
+                    autoLog(elapsedSec, rawCPM, corrected);
+                }
             }
         }, 1000);
     }
 
-    function takeManualSnapshot() {
-        let now = Date.now();
-        let elapsedMin = Math.floor((now - startTime) / 60000);
-        let raw = (pulseTimestamps.length > 0) ? pulseTimestamps.length : 0;
-        let snapshots = JSON.parse(localStorage.getItem('snapshots') || "[]");
-        snapshots.push({ time: elapsedMin, raw: raw, corr: Math.max(0, raw - backgroundCPM) });
-        localStorage.setItem('snapshots', JSON.stringify(snapshots));
-        renderLogTable();
-    }
-
-    function renderLogTable() {
-        let snapshots = JSON.parse(localStorage.getItem('snapshots') || "[]");
-        let html = snapshots.map(s => `<tr><td>${s.time}</td><td>${s.raw}</td><td>${s.corr}</td></tr>`).join('');
-        document.getElementById('logBody').innerHTML = html;
-    }
-
-    function startBackgroundSample(seconds) {
-        isSamplingBG = true;
-        document.getElementById('bgPulseDisplay').innerText = "000";
-        let startCount = totalCounts;
-        setTimeout(() => {
-            let pulses = totalCounts - startCount;
-            backgroundCPM = Math.round((pulses / seconds) * 60);
-            localStorage.setItem('bgCPM', backgroundCPM);
-            isSamplingBG = false;
-            alert("Background Stored: " + backgroundCPM + " CPM");
-        }, seconds * 1000);
+    function autoLog(s, raw, corr) {
+        if(Math.floor(s) % 300 === 0) { // Every 5 mins
+            let row = `<tr><td>${(s/60).toFixed(0)}</td><td>${raw}</td><td>${corr}</td></tr>`;
+            document.getElementById('logBody').innerHTML += row;
+        }
     }
 
     function updateGraph() {
-        radChart.data.datasets[0].data = rawHistory.map(pt => ({ x: pt.x, y: Math.max(0, pt.y - backgroundCPM) }));
+        radChart.data.datasets[0].data = rawHistory;
         radChart.update('none');
     }
 
@@ -219,31 +239,26 @@
         const ctx = document.getElementById('radChart').getContext('2d');
         radChart = new Chart(ctx, {
             type: 'line',
-            data: { datasets: [{ label: 'Corrected CPM', data: [], borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', fill: true, pointRadius: 2 }]},
+            data: { datasets: [{ data: [], borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', fill: true, pointRadius: 2 }]},
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: { x: { type: 'linear', title: { display: true, text: 'Time (minutes)', color: '#8b949e' } }, y: { beginAtZero: true } },
-                plugins: { legend: { display: false } }
+                scales: { x: { type: 'linear', title: { display: true, text: 'Time', color: '#8b949e' } }, y: { beginAtZero: true } },
+                plugins: { legend: { display: false } }, animation: false
             }
         });
-        updateGraph();
     }
 
-    function clearAllData() {
-        if(confirm("Wipe all data? This cannot be undone.")) {
-            localStorage.clear();
-            location.reload();
-        }
-    }
-
+    function clearData() { if(confirm("Reset all?")) location.reload(); }
+    
     function downloadCSV() {
-        let snapshots = JSON.parse(localStorage.getItem('snapshots') || "[]");
-        let csv = "Time(min),RawCPM,CorrectedCPM\n" + snapshots.map(s => `${s.time},${s.raw},${s.corr}`).join("\n");
+        let csv = "Time(min),RawCPM,CorrectedCPM\n";
+        document.querySelectorAll("#logBody tr").forEach(tr => {
+            csv += Array.from(tr.cells).map(td => td.innerText).join(",") + "\n";
+        });
         let blob = new Blob([csv], { type: 'text/csv' });
-        let url = window.URL.createObjectURL(blob);
         let a = document.createElement('a');
-        a.setAttribute('href', url);
-        a.setAttribute('download', 'half_life_data.csv');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'radiation_results.csv';
         a.click();
     }
 </script>
