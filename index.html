@@ -2,79 +2,104 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AQA Radiation: Corrected Count Rate</title>
+    <title>AQA Physics: Radiation Lab</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --accent: #39ff14; --text: #c9d1d9; --danger: #f85149; --warn: #ffdd57; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 10px; display: flex; flex-direction: column; align-items: center; height: 100vh; margin: 0; }
-        .container { width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 10px; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 10px; display: flex; flex-direction: column; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+        .container { width: 100%; max-width: 650px; display: flex; flex-direction: column; height: 100%; gap: 10px; }
         
+        /* Tabs */
+        .tabs { display: flex; gap: 5px; background: #000; padding: 5px; border-radius: 8px; border: 1px solid #333; }
+        .tab-btn { flex: 1; background: transparent; color: #8b949e; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .tab-btn.active { background: #21262d; color: var(--accent); border-bottom: 2px solid var(--accent); }
+
         .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-        .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; transition: 0.2s; }
-        .btn-ble { background: var(--accent); color: #000; }
+        .btn { padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .btn-ble { background: var(--accent); color: #000; width: 100%; }
         .btn-success { background: #2ea44f !important; color: white !important; }
-        .btn-bg { background: #21262d; color: var(--warn); border: 1px solid var(--warn); font-size: 0.8em; }
         
-        .label { font-size: 0.7em; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; text-align: center; margin-bottom: 5px; }
-        .cpm-display { font-size: 5.5em; text-align: center; font-weight: 800; margin: 0; color: var(--accent); font-family: monospace; }
+        .label { font-size: 0.7em; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; text-align: center; }
+        .cpm-display { font-size: 5em; text-align: center; font-weight: 800; margin: 0; color: var(--accent); font-family: monospace; }
         
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .stats-box { background: #000; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: center; }
         .stats-val { font-size: 1.8em; color: #fff; font-family: monospace; }
 
-        .bg-indicator { font-size: 0.8em; text-align: center; color: var(--warn); margin-top: 5px; min-height: 1.2em; }
-        .graph-container { height: 200px; width: 100%; margin-top: 10px; }
-        .flash { color: #fff !important; text-shadow: 0 0 20px #fff !important; }
+        .hidden { display: none; }
+        .graph-container { flex-grow: 1; min-height: 200px; width: 100%; }
+        
+        /* Progress Bar for Background */
+        .progress-wrap { background: #000; border-radius: 20px; height: 10px; margin-top: 10px; overflow: hidden; display: none;}
+        .progress-bar { background: var(--warn); width: 0%; height: 100%; transition: width 1s linear; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button id="bleBtn" class="btn btn-ble" onclick="connectBLE()">Connect Geiger Counter</button>
+    <button id="bleBtn" class="btn btn-ble" onclick="connectBLE()">1. Connect Nano S3</button>
 
-    <div class="card">
-        <div class="label" id="mainLabel">Corrected Count Rate (CPM)</div>
-        <div id="cpmVal" class="cpm-display">0</div>
-        <div id="bgInfo" class="bg-indicator">No Background Set (Showing Raw CPM)</div>
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('main')">Live Monitor</button>
+        <button class="tab-btn" onclick="switchTab('bg')">Background Calibration</button>
     </div>
 
-    <div class="grid">
-        <button class="btn btn-bg" onclick="setInitialBackground()">Capture Background</button>
-        <button class="btn btn-bg" style="color: var(--danger); border-color: var(--danger);" onclick="resetBackground()">Clear BG</button>
+    <!-- MAIN MONITOR TAB -->
+    <div id="tab-main" class="tab-content">
+        <div class="card">
+            <div class="label" id="rateLabel">Corrected Count Rate (CPM)</div>
+            <div id="cpmVal" class="cpm-display">0</div>
+            <div id="bgStatus" style="text-align:center; color:var(--warn); font-size:0.8em;">Using default background (0 CPM)</div>
+        </div>
+        <div class="grid" style="margin-top:10px;">
+            <div class="card stats-box">
+                <div class="label">Total Counts</div>
+                <div id="totalVal" class="stats-val">0</div>
+            </div>
+            <div class="card stats-box">
+                <div class="label">Elapsed Time</div>
+                <div id="timeVal" class="stats-val">00:00</div>
+            </div>
+        </div>
     </div>
 
-    <div class="grid">
-        <div class="card stats-box">
-            <div class="label">Total Counts</div>
-            <div id="totalVal" class="stats-val">0</div>
-        </div>
-        <div class="card stats-box">
-            <div class="label">Elapsed Time</div>
-            <div id="timeVal" class="stats-val">00:00</div>
+    <!-- BACKGROUND CALIBRATION TAB -->
+    <div id="tab-bg" class="tab-content hidden">
+        <div class="card">
+            <div class="label">Background Sampling</div>
+            <p style="font-size:0.8em; color:#8b949e; text-align:center;">Ensure no sources are near the sensor.</p>
+            <div class="grid">
+                <button class="btn" style="background:#444; color:#fff;" onclick="startBackgroundSample(60)">Sample 60s</button>
+                <button class="btn" style="background:#444; color:#fff;" onclick="startBackgroundSample(100)">Sample 100s</button>
+            </div>
+            <div id="progWrap" class="progress-wrap"><div id="progBar" class="progress-bar"></div></div>
+            <div id="bgTimerStatus" style="text-align:center; margin-top:10px; font-weight:bold; color:var(--warn);">Ready to sample</div>
         </div>
     </div>
 
-    <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
-        <div class="label">Activity Graph</div>
-        <div class="graph-container">
-            <canvas id="radChart"></canvas>
-        </div>
-        <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
-            <button class="btn" style="background: #30363d; color: #fff; flex: 2;" onclick="resetData()">Reset Practical</button>
-            <label style="font-size: 0.7em; flex: 1;"><input type="checkbox" id="audioTog" checked> Audio</label>
+    <!-- PERSISTENT GRAPH -->
+    <div class="card" style="flex-grow:1; display:flex; flex-direction:column;">
+        <div class="label">Activity Trend</div>
+        <div class="graph-container"><canvas id="radChart"></canvas></div>
+        <div class="grid" style="margin-top:10px; align-items:center;">
+            <button class="btn" style="background:#30363d; color:#fff; font-size:0.7em;" onclick="resetAll()">Reset Data</button>
+            <label style="font-size:0.7em; text-align:right;"><input type="checkbox" id="audioTog" checked> Audio Click</label>
         </div>
     </div>
 </div>
 
 <script>
     let pDataChar, radChart;
-    let totalCounts = 0;
-    let startTime = null;
-    let pulseTimestamps = [];
-    let graphHistory = [];
-    let backgroundCPM = 0;
-    const WARMUP_TIME = 10;
+    let totalCounts = 0, startTime = null, pulseTimestamps = [], graphHistory = [];
+    let backgroundCPM = 0, isSamplingBG = false;
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function switchTab(t) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + t).classList.remove('hidden');
+        event.currentTarget.classList.add('active');
+    }
 
     function playClick() {
         if (!document.getElementById('audioTog').checked) return;
@@ -88,25 +113,6 @@
         osc.start(); osc.stop(audioCtx.currentTime + 0.04);
     }
 
-    function setInitialBackground() {
-        let currentRaw = (pulseTimestamps.length > 0) ? calculateRawCPM() : 0;
-        backgroundCPM = currentRaw;
-        document.getElementById('bgInfo').innerText = `Background Subtracted: ${backgroundCPM} CPM`;
-        document.getElementById('mainLabel').innerText = "Corrected Count Rate (CPM)";
-    }
-
-    function resetBackground() {
-        backgroundCPM = 0;
-        document.getElementById('bgInfo').innerText = "No Background Set (Showing Raw CPM)";
-        document.getElementById('mainLabel').innerText = "Raw Count Rate (CPM)";
-    }
-
-    function calculateRawCPM() {
-        let now = Date.now();
-        let elapsed = (now - startTime) / 1000;
-        return (elapsed < 60) ? Math.floor((totalCounts / elapsed) * 60) : pulseTimestamps.filter(t => (now - t) <= 60000).length;
-    }
-
     async function connectBLE() {
         try {
             const device = await navigator.bluetooth.requestDevice({
@@ -116,7 +122,6 @@
             const server = await device.gatt.connect();
             const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
             pDataChar = await service.getCharacteristic("19b10001-e8f2-537e-4f6c-d104768a1214");
-
             await pDataChar.startNotifications();
             pDataChar.addEventListener('characteristicvaluechanged', (e) => {
                 let str = new TextDecoder().decode(e.target.value);
@@ -126,18 +131,41 @@
                     totalCounts++;
                     document.getElementById('totalVal').innerText = totalCounts;
                     playClick();
-                    document.getElementById('cpmVal').classList.add('flash');
-                    setTimeout(() => document.getElementById('cpmVal').classList.remove('flash'), 50);
                 }
             });
-
             document.getElementById('bleBtn').innerText = "SYSTEM ONLINE";
             document.getElementById('bleBtn').classList.add('btn-success');
-            initExperiment();
+            initLogic();
         } catch (err) { console.log(err); }
     }
 
-    function initExperiment() {
+    function startBackgroundSample(seconds) {
+        if(isSamplingBG) return;
+        isSamplingBG = true;
+        let startCount = totalCounts;
+        let timeLeft = seconds;
+        document.getElementById('progWrap').style.display = 'block';
+        
+        let timer = setInterval(() => {
+            timeLeft--;
+            let percent = ((seconds - timeLeft) / seconds) * 100;
+            document.getElementById('progBar').style.width = percent + "%";
+            document.getElementById('bgTimerStatus').innerText = `Sampling Background: ${timeLeft}s left`;
+
+            if(timeLeft <= 0) {
+                clearInterval(timer);
+                let finalCount = totalCounts - startCount;
+                backgroundCPM = Math.round((finalCount / seconds) * 60);
+                document.getElementById('bgStatus').innerText = `Corrected for Background: ${backgroundCPM} CPM`;
+                document.getElementById('bgTimerStatus').innerText = `Done! Sampled ${backgroundCPM} CPM`;
+                document.getElementById('progWrap').style.display = 'none';
+                isSamplingBG = false;
+                switchTab('main');
+            }
+        }, 1000);
+    }
+
+    function initLogic() {
         startTime = Date.now();
         initGraph();
         setInterval(() => {
@@ -145,34 +173,33 @@
             let now = Date.now();
             let elapsed = (now - startTime) / 1000;
             
-            // Timer
+            // Time Display
             let m = String(Math.floor(elapsed / 60)).padStart(2, '0');
             let s = String(Math.floor(elapsed % 60)).padStart(2, '0');
             document.getElementById('timeVal').innerText = `${m}:${s}`;
 
-            // CPM Logic
+            // CPM Calc
             pulseTimestamps = pulseTimestamps.filter(t => (now - t) <= 60000);
-            
-            if (elapsed < WARMUP_TIME) {
-                document.getElementById('cpmVal').innerText = "---";
-            } else {
-                let raw = calculateRawCPM();
+            if (elapsed > 10) {
+                let raw = (elapsed < 60) ? Math.floor((totalCounts / elapsed) * 60) : pulseTimestamps.length;
                 let corrected = Math.max(0, raw - backgroundCPM);
                 document.getElementById('cpmVal').innerText = corrected;
-
+                
                 if (Math.floor(elapsed) % 2 === 0) {
                     graphHistory.push({ x: Math.floor(elapsed), y: corrected });
                     if (graphHistory.length > 100) graphHistory.shift();
                     radChart.update('none');
                 }
+            } else {
+                document.getElementById('cpmVal').innerText = "---";
             }
         }, 1000);
     }
 
-    function resetData() {
+    function resetAll() {
         totalCounts = 0; pulseTimestamps = []; graphHistory = []; startTime = Date.now();
-        document.getElementById('totalVal').innerText = "0";
-        document.getElementById('cpmVal').innerText = "0";
+        backgroundCPM = 0;
+        document.getElementById('bgStatus').innerText = "Using default background (0 CPM)";
         if (radChart) { radChart.data.datasets[0].data = graphHistory; radChart.update(); }
     }
 
@@ -180,15 +207,11 @@
         const ctx = document.getElementById('radChart').getContext('2d');
         radChart = new Chart(ctx, {
             type: 'line',
-            data: { datasets: [{ label: 'CPM', data: graphHistory, borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', fill: true, tension: 0.4, pointRadius: 0 }]},
+            data: { datasets: [{ data: graphHistory, borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', fill: true, tension: 0.4, pointRadius: 0 }]},
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: {
-                    x: { type: 'linear', display: false },
-                    y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#8b949e' } }
-                },
-                plugins: { legend: { display: false } },
-                animation: false
+                scales: { x: { type: 'linear', display: false }, y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#8b949e' } } },
+                plugins: { legend: { display: false } }, animation: false
             }
         });
     }
