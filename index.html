@@ -2,101 +2,167 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Radiation Pro: Lab Dashboard</title>
+    <title>AQA Physics & Chemistry Master</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --accent: #39ff14; --text: #c9d1d9; --danger: #f85149; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .container { width: 100%; max-width: 600px; }
+        :root { --bg: #0d1117; --card: #161b22; --accent: #00d1b2; --text: #c9d1d9; --danger: #f85149; --phys: #58a6ff; --rad: #39ff14; --ph: #ffdd57; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 10px 20px; display: flex; flex-direction: column; align-items: center; height: 100vh; margin: 0; box-sizing: border-box; }
+        .container { width: 100%; max-width: 650px; display: flex; flex-direction: column; height: 100%; }
         
-        .card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #30363d; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        
-        .btn { width: 100%; padding: 16px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-ble { background: var(--accent); color: #000; margin-bottom: 15px; font-size: 1.1em; }
+        /* Top Bar & Connection */
+        .header { display: flex; gap: 10px; margin-bottom: 10px; }
+        .btn { padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; width: 100%; text-transform: uppercase; }
+        .btn-ble { background: var(--accent); color: #000; font-size: 1em; }
         .btn-success { background: #2ea44f !important; color: white !important; }
-        .btn-reset { background: transparent; color: var(--text); border: 1px solid #555; padding: 10px; font-size: 0.8em; }
-        .btn-reset:hover { border-color: var(--danger); color: var(--danger); }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; background: #000; padding: 5px; border-radius: 8px; border: 1px solid #333; }
+        .tab-btn { flex: 1; background: transparent; color: #8b949e; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .tab-btn.active.ph { background: #21262d; color: var(--ph); border-bottom: 3px solid var(--ph); }
+        .tab-btn.active.phys { background: #21262d; color: var(--phys); border-bottom: 3px solid var(--phys); }
+        .tab-btn.active.rad { background: #21262d; color: var(--rad); border-bottom: 3px solid var(--rad); }
 
-        .label { font-size: 0.7em; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; text-align: center; }
+        .hidden { display: none !important; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #30363d; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .label { font-size: 0.75em; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; text-align: center; }
+
+        /* Shared Readout Styles */
+        .big-display { font-size: 5em; text-align: center; font-weight: 800; margin: 10px 0; font-family: monospace; line-height: 1; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .stats-box { background: #000; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: center; }
+        .stats-val { font-size: 1.8em; color: #fff; font-family: monospace; font-weight: bold; }
+
+        /* Specific Colors */
+        .c-ph { color: var(--ph); text-shadow: 0 0 10px rgba(255, 221, 87, 0.2); }
+        .c-phys { color: var(--phys); text-shadow: 0 0 10px rgba(88, 166, 255, 0.2); }
+        .c-rad { color: var(--rad); text-shadow: 0 0 10px rgba(57, 255, 20, 0.2); transition: color 0.1s; }
+        .flash { color: #fff !important; text-shadow: 0 0 30px #fff !important; }
+
+        /* Graph Container - Fixed height so it never forces a scroll */
+        .graph-container { flex-grow: 1; position: relative; min-height: 180px; max-height: 250px; width: 100%; }
         
-        .cpm-display { font-size: 6em; text-align: center; font-weight: 800; margin: 0; color: var(--accent); font-family: monospace; line-height: 1; text-shadow: 0 0 15px rgba(57, 255, 20, 0.2); transition: color 0.1s; }
-        .flash { color: #fff !important; text-shadow: 0 0 30px #fff !important; } /* Pulse animation */
-        
-        .stats-box { background: #000; padding: 15px; border-radius: 8px; border: 1px solid #333; text-align: center; }
-        .stats-val { font-size: 2em; color: #fff; font-family: monospace; font-weight: bold; }
-        
-        .control-bar { display: flex; justify-content: space-between; align-items: center; background: #000; padding: 10px 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 15px; }
-        .audio-toggle { display: flex; align-items: center; gap: 10px; font-size: 0.9em; cursor: pointer; }
-        input[type="checkbox"] { accent-color: var(--accent); scale: 1.2; cursor: pointer; }
+        .btn-sub { background: #21262d; color: #fff; border: 1px solid #555; }
+        .btn-sub:hover { border-color: var(--text); }
+        .btn-arm { background: var(--danger); color: white; border: none; font-size: 1.2em; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button id="bleBtn" class="btn btn-ble" onclick="connectBLE()">CONNECT TO NANO S3</button>
-
-    <div class="control-bar">
-        <label class="audio-toggle">
-            <input type="checkbox" id="audioTog" checked> Enable Audio Clicks
-        </label>
-        <div style="font-size: 0.8em; color: #8b949e;">Status: <span id="connStatus" style="color:var(--danger)">OFFLINE</span></div>
+    <div class="header">
+        <button id="bleBtn" class="btn btn-ble" onclick="connectBLE()">1. CONNECT SYSTEM</button>
     </div>
 
-    <!-- Main Readout -->
-    <div class="card" id="readoutCard">
-        <div class="label">Rolling CPM (Counts Per Minute)</div>
-        <div id="cpmVal" class="cpm-display">0</div>
+    <!-- TABS -->
+    <div class="tabs">
+        <button class="tab-btn active ph" onclick="switchTab('phTab', 'MODE:PH', this)">pH Meter</button>
+        <button class="tab-btn phys" onclick="switchTab('physTab', 'MODE:PHYS', this)">Light Gate</button>
+        <button class="tab-btn rad" onclick="switchTab('radTab', null, this)">Radiation</button>
     </div>
 
-    <!-- Secondary Stats -->
-    <div class="grid-2">
-        <div class="card stats-box">
-            <div class="label">Total Counts</div>
-            <div id="totalVal" class="stats-val">0</div>
+    <!-- ================= pH TAB ================= -->
+    <div id="phTab" class="tab-content">
+        <div class="card">
+            <div class="label">Live pH Readout</div>
+            <div id="phVal" class="big-display c-ph">--.-</div>
         </div>
-        <div class="card stats-box">
-            <div class="label">Elapsed Time</div>
-            <div id="timeVal" class="stats-val">00:00</div>
+        <div class="card">
+            <div class="label">Calibration</div>
+            <div class="stats-box" style="margin-bottom: 10px;">
+                <span style="color: #8b949e; font-size: 0.8em;">LIVE RAW ADC: </span>
+                <span id="rawDisplay" style="color: var(--ph); font-family: monospace; font-size: 1.2em;">----</span>
+            </div>
+            <div class="grid-2">
+                <button class="btn btn-sub" onclick="doCmd('CAL:7')">Save pH 7</button>
+                <button class="btn btn-sub" onclick="doCmd('CAL:4')">Save pH 4</button>
+            </div>
         </div>
     </div>
 
-    <!-- Graph -->
-    <div class="card">
-        <div class="label">Radiation Trend (CPM)</div>
-        <canvas id="radChart" style="margin-top:10px; height: 200px;"></canvas>
-        <button class="btn btn-reset" style="margin-top: 15px; width: 100%;" onclick="resetData()">RESET EXPERIMENT</button>
+    <!-- ================= PHYSICS TAB ================= -->
+    <div id="physTab" class="tab-content hidden">
+        <div class="card" style="text-align: center;">
+            <div class="label">Acceleration (m/s²)</div>
+            <div id="accelVal" class="big-display c-phys">0.00</div>
+            <button class="btn btn-arm" onclick="doCmd('ARM')">ARM SENSOR (WAIT FOR DROP)</button>
+        </div>
+        <div class="grid-2">
+            <div class="card stats-box">
+                <div class="label">Velocity 1 (m/s)</div>
+                <div id="v1Val" class="stats-val">0.00</div>
+            </div>
+            <div class="card stats-box">
+                <div class="label">Velocity 2 (m/s)</div>
+                <div id="v2Val" class="stats-val">0.00</div>
+            </div>
+        </div>
     </div>
+
+    <!-- ================= RADIATION TAB ================= -->
+    <div id="radTab" class="tab-content hidden" style="display: flex; flex-direction: column; flex-grow: 1;">
+        <div class="grid-2">
+            <div class="card stats-box" style="margin-bottom: 0;">
+                <div class="label">Rolling CPM</div>
+                <div id="cpmVal" class="big-display c-rad" style="font-size: 3.5em; margin: 0;">0</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div class="card stats-box" style="margin: 0; padding: 5px;">
+                    <div class="label">Total Counts</div>
+                    <div id="totalVal" class="stats-val" style="font-size: 1.5em;">0</div>
+                </div>
+                <div class="card stats-box" style="margin: 0; padding: 5px;">
+                    <label style="color:#8b949e; font-size: 0.8em;"><input type="checkbox" id="audioTog" checked> Audio Click</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card" style="flex-grow: 1; display: flex; flex-direction: column; margin-top: 15px;">
+            <div class="label">Radiation Trend (Auto-Scaling)</div>
+            <div class="graph-container">
+                <canvas id="radChart"></canvas>
+            </div>
+            <button class="btn btn-sub" style="margin-top: 10px; padding: 8px;" onclick="resetRadData()">Clear Data</button>
+        </div>
+    </div>
+
 </div>
 
 <script>
-    let pDataChar, radChart;
+    let pDataChar, pCmdChar;
+    
+    // Geiger Variables
+    let radChart;
     let totalCounts = 0;
     let startTime = null;
-    let timerInterval = null;
-    let pulseTimestamps = []; // Stores timestamps of every click for 60 seconds
+    let pulseTimestamps = [];
     let graphHistory = [];
-    
-    // Audio Context for the Geiger "Tick"
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    function playClick() {
-        if (!document.getElementById('audioTog').checked) return;
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+    // 1. UI Logic
+    function switchTab(tabId, cmd, btnEl) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         
-        const osc = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(4000, audioCtx.currentTime); // High pitched click
-        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.05); // Rapid decay
-        
-        osc.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.05);
+        // Show selected tab
+        document.getElementById(tabId).classList.remove('hidden');
+        btnEl.classList.add('active');
+
+        // Send hardware command if connected
+        if (pCmdChar && cmd) doCmd(cmd);
+
+        // Fix chart rendering size if switching to Rad tab
+        if (tabId === 'radTab' && radChart) radChart.resize();
     }
 
+    async function doCmd(cmd) {
+        if (!pCmdChar) return;
+        try { await pCmdChar.writeValue(new TextEncoder().encode(cmd)); } 
+        catch (e) { console.log("Cmd Error", e); }
+    }
+
+    // 2. BLE Connection & Parsing
     async function connectBLE() {
         try {
             const device = await navigator.bluetooth.requestDevice({
@@ -106,127 +172,111 @@
             const server = await device.gatt.connect();
             const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
             pDataChar = await service.getCharacteristic("19b10001-e8f2-537e-4f6c-d104768a1214");
+            pCmdChar = await service.getCharacteristic("19b10002-e8f2-537e-4f6c-d104768a1214");
 
-            // We don't send a MODE command here because your Geiger interrupt runs universally in the background!
+            // Default to pH mode on connect
+            await doCmd("MODE:PH");
 
             await pDataChar.startNotifications();
             pDataChar.addEventListener('characteristicvaluechanged', (e) => {
-                let str = new TextDecoder().decode(e.target.value).trim();
+                let str = new TextDecoder().decode(e.target.value).trim().replace(/\s/g, '');
                 
-                // BULLETPROOF PARSING: If high radiation sends "RAD:1RAD:1", this counts both.
-                let hits = (str.match(/RAD:1/g) || []).length;
-                for(let i=0; i<hits; i++) {
-                    registerPulse();
+                // ROUTER: Send data to the correct UI based on the string prefix
+                if (str.includes("PH:")) {
+                    document.getElementById('phVal').innerText = parseFloat(str.split("PH:")[1]).toFixed(2);
+                } 
+                else if (str.includes("RAW:")) {
+                    document.getElementById('rawDisplay').innerText = str.split("RAW:")[1];
+                }
+                else if (str.includes("DAT:")) {
+                    let parts = str.split("DAT:")[1].split(",");
+                    document.getElementById('v1Val').innerText = parts[0];
+                    document.getElementById('v2Val').innerText = parts[1];
+                    document.getElementById('accelVal').innerText = parts[2];
+                }
+                else if (str.includes("RAD:1")) {
+                    let hits = (str.match(/RAD:1/g) || []).length;
+                    for(let i=0; i<hits; i++) registerPulse();
                 }
             });
 
-            // UI Updates
-            document.getElementById('bleBtn').innerText = "SYSTEM ACTIVE";
+            document.getElementById('bleBtn').innerText = "SYSTEM CONNECTED";
             document.getElementById('bleBtn').classList.add('btn-success');
-            document.getElementById('connStatus').innerText = "ONLINE";
-            document.getElementById('connStatus').style.color = "var(--accent)";
-            
-            initExperiment();
+            initRadSystem();
+
         } catch (err) { 
             console.log(err);
-            alert("Connection Failed. Make sure Nano S3 is powered and not connected to another tab.");
+            alert("Bluetooth connection failed.");
         }
     }
 
-    function registerPulse() {
-        let now = Date.now();
-        pulseTimestamps.push(now);
-        totalCounts++;
-        document.getElementById('totalVal').innerText = totalCounts;
-        
-        playClick();
+    // 3. Radiation Logic
+    function playClick() {
+        if (!document.getElementById('audioTog').checked) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square'; osc.frequency.value = 4000;
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.05);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+    }
 
-        // Visual Flash
+    function registerPulse() {
+        pulseTimestamps.push(Date.now());
+        document.getElementById('totalVal').innerText = ++totalCounts;
+        playClick();
+        
         const cpmEl = document.getElementById('cpmVal');
         cpmEl.classList.add('flash');
         setTimeout(() => cpmEl.classList.remove('flash'), 50);
     }
 
-    function calculateCPM() {
-        let now = Date.now();
-        // Remove pulses older than 60 seconds (60000 ms)
-        pulseTimestamps = pulseTimestamps.filter(t => (now - t) <= 60000);
-        
-        // If experiment has been running less than a minute, extrapolate CPM
-        let elapsedTotal = (now - startTime) / 1000;
-        let cpm = 0;
-        
-        if (elapsedTotal < 60 && elapsedTotal > 0) {
-            cpm = Math.floor((totalCounts / elapsedTotal) * 60); // Extrapolate
-        } else {
-            cpm = pulseTimestamps.length; // True rolling 60s window
-        }
-        
-        document.getElementById('cpmVal').innerText = cpm;
-        return cpm;
-    }
-
-    function updateTimer() {
-        if (!startTime) return;
-        let diff = Math.floor((Date.now() - startTime) / 1000);
-        let m = String(Math.floor(diff / 60)).padStart(2, '0');
-        let s = String(diff % 60).padStart(2, '0');
-        document.getElementById('timeVal').innerText = `${m}:${s}`;
-    }
-
-    function initExperiment() {
-        resetData();
+    function initRadSystem() {
+        resetRadData();
         initGraph();
-        
-        // Main Logic Loop (Runs every 1 second)
-        timerInterval = setInterval(() => {
-            updateTimer();
-            let currentCPM = calculateCPM();
+        setInterval(() => {
+            let now = Date.now();
+            pulseTimestamps = pulseTimestamps.filter(t => (now - t) <= 60000);
             
-            // Update Graph every 2 seconds to keep it clean
-            let elapsedSec = Math.floor((Date.now() - startTime) / 1000);
-            if (elapsedSec % 2 === 0) {
-                updateGraph(elapsedSec, currentCPM);
-            }
+            let elapsed = (now - startTime) / 1000;
+            let cpm = (elapsed < 60 && elapsed > 0) ? Math.floor((totalCounts / elapsed) * 60) : pulseTimestamps.length;
+            
+            document.getElementById('cpmVal').innerText = cpm;
+            
+            if (Math.floor(elapsed) % 2 === 0) updateGraph(Math.floor(elapsed), cpm);
         }, 1000);
     }
 
-    function resetData() {
-        totalCounts = 0;
-        pulseTimestamps = [];
-        graphHistory = [];
-        startTime = Date.now();
+    function resetRadData() {
+        totalCounts = 0; pulseTimestamps = []; graphHistory = []; startTime = Date.now();
         document.getElementById('totalVal').innerText = "0";
         document.getElementById('cpmVal').innerText = "0";
-        document.getElementById('timeVal').innerText = "00:00";
-        if (radChart) {
-            radChart.data.datasets[0].data = graphHistory;
-            radChart.update();
-        }
+        if (radChart) { radChart.data.datasets[0].data = graphHistory; radChart.update(); }
     }
 
     function initGraph() {
-        if (radChart) radChart.destroy();
         const ctx = document.getElementById('radChart').getContext('2d');
         radChart = new Chart(ctx, {
             type: 'line',
-            data: { datasets: [{ label: 'CPM', data: graphHistory, borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', tension: 0.4, fill: true, pointRadius: 0 }]},
+            data: { datasets: [{ data: graphHistory, borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', tension: 0.3, fill: true, pointRadius: 0 }]},
             options: {
                 responsive: true, maintainAspectRatio: false,
                 scales: {
-                    x: { type: 'linear', title: { display: true, text: 'Seconds', color: '#8b949e' }, grid: { color: '#333' }, ticks: { color: '#8b949e' } },
-                    y: { min: 0, suggestedMax: 50, title: { display: true, text: 'CPM', color: '#8b949e' }, grid: { color: '#333' }, ticks: { color: '#8b949e' } }
+                    x: { type: 'linear', display: false }, // Hidden X axis to save space
+                    // Y axis now auto-scales beautifully. beginAtZero prevents it from zooming in too tight.
+                    y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#8b949e' } }
                 },
-                plugins: { legend: { display: false } },
-                animation: false
+                plugins: { legend: { display: false } }, animation: false
             }
         });
     }
 
-    function updateGraph(timeStr, cpmVal) {
+    function updateGraph(sec, cpm) {
         if (!radChart) return;
-        graphHistory.push({ x: timeStr, y: cpmVal });
-        if (graphHistory.length > 150) graphHistory.shift(); // Keep last ~5 mins of data points
+        graphHistory.push({ x: sec, y: cpm });
+        if (graphHistory.length > 150) graphHistory.shift();
         radChart.update('none');
     }
 </script>
