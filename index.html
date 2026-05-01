@@ -13,22 +13,21 @@
         .tab-btn { flex: 1; background: transparent; color: #8b949e; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.8em; }
         .tab-btn.active { background: #21262d; color: var(--accent); border-bottom: 2px solid var(--accent); }
 
-        .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-        .btn { padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.5); position: relative; }
+        .btn { padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; transition: 0.2s; }
         .btn-ble { background: var(--accent); color: #000; width: 100%; }
+        .btn-start { background: #2ea44f; color: white; }
+        .btn-stop { background: var(--danger); color: white; }
         
         .cpm-display { font-size: 5em; text-align: center; font-weight: 800; margin: 0; color: var(--accent); font-family: monospace; line-height: 1; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
         .stats-box { background: #000; padding: 10px; border-radius: 8px; border: 1px solid #333; text-align: center; }
         
-        .log-table-wrap { max-height: 250px; overflow-y: auto; background: #000; border-radius: 8px; border: 1px solid #444; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
-        th { background: #111; color: var(--accent); padding: 8px; position: sticky; top: 0; }
-        td { padding: 8px; border-bottom: 1px solid #222; text-align: center; }
-
         .hidden { display: none; }
-        .graph-container { height: 300px; width: 100%; }
+        .graph-container { height: 320px; width: 100%; margin-top: 10px; }
         .timer-big { font-size: 4em; color: var(--warn); font-family: monospace; }
+        
+        .controls-row { display: flex; justify-content: space-between; align-items: center; background: #000; padding: 10px; border-radius: 8px; margin-top: 10px; border: 1px solid #444; }
     </style>
 </head>
 <body>
@@ -37,8 +36,8 @@
     <button id="bleBtn" class="btn btn-ble" onclick="connectBLE()">Connect Geiger Counter</button>
 
     <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('demo')">Fast Demo (Absorbers)</button>
-        <button class="tab-btn" onclick="switchTab('half')">Half-Life (Radon)</button>
+        <button class="tab-btn active" onclick="switchTab('demo')">Fast Demo</button>
+        <button class="tab-btn" onclick="switchTab('half')">Half-Life</button>
         <button class="tab-btn" onclick="switchTab('bg')">BG Calibration</button>
         <button class="tab-btn" onclick="switchTab('data')">Data Table</button>
     </div>
@@ -46,20 +45,23 @@
     <!-- FAST DEMO TAB -->
     <div id="tab-demo" class="tab-content">
         <div class="card">
-            <div class="label" style="text-align:center">Live Corrected CPM (Fast Response)</div>
+            <div class="label" style="text-align:center">Live CPM (Fast Response)</div>
             <div id="demoCpm" class="cpm-display">0</div>
-            <p style="font-size:0.75em; color:var(--info); text-align:center;">Updates every 2s • Use for Alpha/Beta/Gamma absorption</p>
         </div>
     </div>
 
     <!-- HALF LIFE TAB -->
     <div id="tab-half" class="tab-content hidden">
         <div class="card">
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button id="hlStartBtn" class="btn btn-start" style="flex:1" onclick="toggleHalfLife()">Start Experiment</button>
+                <button class="btn btn-stop" style="flex:1" onclick="resetHalfLife()">Reset</button>
+            </div>
             <div id="halfCpm" class="cpm-display">0</div>
-            <div class="grid" style="margin-top:10px;">
-                <div class="stats-box"><small>Session Time</small><div id="timeVal">00:00:00</div></div>
-                <div class="stats-box"><small>Corrected Counts</small><div id="totalVal">0</div></div>
-                <div class="stats-box"><small>Background</small><div id="bgDisp">0 CPM</div></div>
+            <div class="grid">
+                <div class="stats-box"><small>Decay Time</small><div id="timeVal">00:00:00</div></div>
+                <div class="stats-box"><small>Est. Half-Life</small><div id="hlCalc" style="color:var(--warn)">-- min</div></div>
+                <div class="stats-box"><small>BG Level</small><div id="bgDisp">0 CPM</div></div>
             </div>
         </div>
     </div>
@@ -69,7 +71,6 @@
         <div class="card" style="text-align:center;">
             <div class="label">Background Sampling</div>
             <div id="bgTimer" class="timer-big">000</div>
-            <div class="label">Seconds Remaining</div>
             <div id="bgCounts" style="font-size: 2em; color: var(--accent); margin: 10px 0;">0 Pulses</div>
             <div class="grid">
                 <button class="btn" style="background:#333; color:#fff;" onclick="startBG(60)">60s Test</button>
@@ -81,31 +82,38 @@
     <!-- DATA TAB -->
     <div id="tab-data" class="tab-content hidden">
         <div class="card">
-            <div class="log-table-wrap">
-                <table id="logTable">
-                    <thead><tr><th>Time (m)</th><th>Raw CPM</th><th>Corrected</th></tr></thead>
+            <div style="max-height: 300px; overflow-y: auto; background: #000; border-radius: 8px;">
+                <table style="width:100%; border-collapse: collapse; font-size: 0.8em; text-align: center;">
+                    <thead><tr style="color:var(--accent)"><th>Time (m)</th><th>Raw CPM</th><th>Corrected</th></tr></thead>
                     <tbody id="logBody"></tbody>
                 </table>
             </div>
-            <button class="btn" style="width:100%; margin-top:10px; background:var(--info); color:#000;" onclick="downloadCSV()">Export to Excel (CSV)</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:var(--info); color:#000;" onclick="downloadCSV()">Export CSV</button>
         </div>
     </div>
 
-    <!-- GLOBAL GRAPH -->
-    <div class="card">
-        <div class="graph-container"><canvas id="radChart"></canvas></div>
-        <div style="display:flex; justify-content:space-between; margin-top:10px;">
-            <button class="btn" style="background:var(--danger); color:#fff; font-size:0.7em;" onclick="clearData()">Reset Experiment</button>
-            <label style="font-size:0.8em;"><input type="checkbox" id="audioTog" checked> Audio Click</label>
+    <!-- GRAPH CARD (Hidden on BG Tab) -->
+    <div id="graphCard" class="card">
+        <div class="controls-row">
+            <label style="font-size:0.8em; color:var(--warn); cursor:pointer;">
+                <input type="checkbox" id="correctToggle" onchange="updateGraph()"> Correct for Background
+            </label>
+            <label style="font-size:0.8em; color:#8b949e; cursor:pointer;">
+                <input type="checkbox" id="audioTog" checked> Audio Click
+            </label>
         </div>
+        <div class="graph-container"><canvas id="radChart"></canvas></div>
     </div>
 </div>
 
 <script>
     let pDataChar, radChart;
-    let totalCounts = 0, startTime = null, pulseTimestamps = [], rawHistory = [];
-    let backgroundCPM = localStorage.getItem('bgCPM') || 0;
+    let totalCounts = 0, pulseTimestamps = [];
+    let demoHistory = [], halfLifeHistory = [];
+    let backgroundCPM = 0;
     let isSamplingBG = false, bgPulses = 0;
+    let isHLRunning = false, hlStartTime = null;
+    
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function switchTab(t) {
@@ -113,12 +121,36 @@
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-' + t).classList.remove('hidden');
         event.currentTarget.classList.add('active');
-        if(t === 'demo') {
-            radChart.options.scales.x.title.text = "Seconds";
-            radChart.update();
-        } else if(t === 'half') {
-            radChart.options.scales.x.title.text = "Minutes";
-            radChart.update();
+        
+        // Hide graph on background tab
+        document.getElementById('graphCard').style.display = (t === 'bg') ? 'none' : 'block';
+        
+        updateGraph();
+    }
+
+    function toggleHalfLife() {
+        const btn = document.getElementById('hlStartBtn');
+        if (!isHLRunning) {
+            isHLRunning = true;
+            hlStartTime = Date.now();
+            btn.innerText = "Pause Experiment";
+            btn.classList.replace('btn-start', 'btn-stop');
+        } else {
+            isHLRunning = false;
+            btn.innerText = "Resume Experiment";
+            btn.classList.replace('btn-stop', 'btn-start');
+        }
+    }
+
+    function resetHalfLife() {
+        if(confirm("Wipe Half-Life Data?")) {
+            halfLifeHistory = [];
+            isHLRunning = false;
+            hlStartTime = null;
+            document.getElementById('hlStartBtn').innerText = "Start Experiment";
+            document.getElementById('hlStartBtn').className = "btn btn-start";
+            document.getElementById('logBody').innerHTML = "";
+            updateGraph();
         }
     }
 
@@ -128,7 +160,7 @@
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'square'; osc.frequency.value = 3200;
-        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.03);
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.start(); osc.stop(audioCtx.currentTime + 0.03);
@@ -156,7 +188,6 @@
                     playClick();
                 }
             });
-            if(!startTime) startTime = Date.now();
             document.getElementById('bleBtn').innerText = "ONLINE";
             document.getElementById('bleBtn').classList.add('btn-success');
             initLogic();
@@ -174,9 +205,8 @@
             if(left <= 0) {
                 clearInterval(itvl);
                 backgroundCPM = Math.round((bgPulses / duration) * 60);
-                localStorage.setItem('bgCPM', backgroundCPM);
+                document.getElementById('bgDisp').innerText = backgroundCPM + " CPM";
                 isSamplingBG = false;
-                alert("Background Set: " + backgroundCPM + " CPM");
                 switchTab('demo');
             }
         }, 1000);
@@ -185,53 +215,87 @@
     function initLogic() {
         initGraph();
         setInterval(() => {
-            if (!startTime) return;
             let now = Date.now();
-            let elapsedSec = (now - startTime) / 1000;
-            
-            // Displays
             pulseTimestamps = pulseTimestamps.filter(t => (now - t) <= 60000);
-            let rawCPM = (elapsedSec < 60) ? Math.floor((totalCounts / elapsedSec) * 60) : pulseTimestamps.length;
-            let corrected = Math.max(0, rawCPM - backgroundCPM);
+            let currentRawCPM = pulseTimestamps.length;
+            let currentCorrCPM = Math.max(0, currentRawCPM - backgroundCPM);
 
-            document.getElementById('demoCpm').innerText = corrected;
-            document.getElementById('halfCpm').innerText = corrected;
-            document.getElementById('bgDisp').innerText = backgroundCPM + " CPM";
-            document.getElementById('totalVal').innerText = totalCounts;
+            // Update Displays
+            document.getElementById('demoCpm').innerText = document.getElementById('correctToggle').checked ? currentCorrCPM : currentRawCPM;
+            document.getElementById('halfCpm').innerText = document.getElementById('correctToggle').checked ? currentCorrCPM : currentRawCPM;
 
-            // Timer
-            let h = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
-            let m = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0');
-            let s = String(Math.floor(elapsedSec % 60)).padStart(2, '0');
-            document.getElementById('timeVal').innerText = `${h}:${m}:${s}`;
+            // Demo logic (Rolling 60s)
+            demoHistory.push({ x: now, y: currentRawCPM });
+            if(demoHistory.length > 60) demoHistory.shift();
 
-            // Graphing
-            let activeTab = document.querySelector('.tab-btn.active').innerText;
-            if(activeTab.includes("Fast")) {
-                if(Math.floor(elapsedSec) % 2 === 0) {
-                    rawHistory.push({ x: Math.floor(elapsedSec), y: corrected });
-                    if(rawHistory.length > 60) rawHistory.shift();
-                    updateGraph();
-                }
-            } else {
-                if(Math.floor(elapsedSec) % 30 === 0) {
-                    rawHistory.push({ x: (elapsedSec / 60).toFixed(1), y: corrected });
-                    updateGraph();
-                    autoLog(elapsedSec, rawCPM, corrected);
+            // Half-life logic
+            if(isHLRunning && hlStartTime) {
+                let elapsedSec = (now - hlStartTime) / 1000;
+                let h = String(Math.floor(elapsedSec / 3600)).padStart(2, '0');
+                let m = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0');
+                let s = String(Math.floor(elapsedSec % 60)).padStart(2, '0');
+                document.getElementById('timeVal').innerText = `${h}:${m}:${s}`;
+
+                // Record data point every 10 seconds to halfLifeHistory
+                if(Math.floor(elapsedSec) % 10 === 0) {
+                    let point = { x: (elapsedSec / 60).toFixed(2), y: currentRawCPM };
+                    // Avoid duplicate timestamps
+                    if(halfLifeHistory.length === 0 || halfLifeHistory[halfLifeHistory.length-1].x !== point.x) {
+                        halfLifeHistory.push(point);
+                        calculateHalfLife();
+                        if(Math.floor(elapsedSec) % 300 === 0) { // Log to table every 5m
+                             let row = `<tr><td>${(elapsedSec/60).toFixed(0)}</td><td>${currentRawCPM}</td><td>${currentCorrCPM}</td></tr>`;
+                             document.getElementById('logBody').innerHTML += row;
+                        }
+                    }
                 }
             }
+            updateGraph();
         }, 1000);
     }
 
-    function autoLog(s, raw, corr) {
-        if(Math.floor(s) % 300 === 0) { // Every 5 mins
-            let row = `<tr><td>${(s/60).toFixed(0)}</td><td>${raw}</td><td>${corr}</td></tr>`;
-            document.getElementById('logBody').innerHTML += row;
+    function calculateHalfLife() {
+        if(halfLifeHistory.length < 20) return; // Need data to estimate
+        
+        let background = backgroundCPM;
+        let startPoint = halfLifeHistory[0];
+        let currentPoint = halfLifeHistory[halfLifeHistory.length - 1];
+        
+        let N0 = startPoint.y - background;
+        let Nt = currentPoint.y - background;
+        let t = parseFloat(currentPoint.x) - parseFloat(startPoint.x);
+
+        if(N0 > 10 && Nt > 5 && N0 > Nt) {
+            let lambda = Math.log(N0 / Nt) / t;
+            let halfLife = Math.log(2) / lambda;
+            if(halfLife > 0 && halfLife < 500) {
+                document.getElementById('hlCalc').innerText = halfLife.toFixed(1) + " min";
+            }
         }
     }
 
     function updateGraph() {
-        radChart.data.datasets[0].data = rawHistory;
+        if(!radChart) return;
+        let activeTab = document.querySelector('.tab-btn.active').innerText;
+        let isCorrected = document.getElementById('correctToggle').checked;
+        
+        if(activeTab.includes("Fast")) {
+            radChart.options.scales.x.type = 'linear';
+            radChart.options.scales.x.title.text = "Seconds Ago";
+            // Map demoHistory to "seconds ago" format
+            let now = Date.now();
+            radChart.data.datasets[0].data = demoHistory.map(p => ({
+                x: Math.round((p.x - now)/1000), 
+                y: isCorrected ? Math.max(0, p.y - backgroundCPM) : p.y
+            }));
+        } else {
+            radChart.options.scales.x.type = 'linear';
+            radChart.options.scales.x.title.text = "Minutes";
+            radChart.data.datasets[0].data = halfLifeHistory.map(p => ({
+                x: p.x, 
+                y: isCorrected ? Math.max(0, p.y - backgroundCPM) : p.y
+            }));
+        }
         radChart.update('none');
     }
 
@@ -239,17 +303,18 @@
         const ctx = document.getElementById('radChart').getContext('2d');
         radChart = new Chart(ctx, {
             type: 'line',
-            data: { datasets: [{ data: [], borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', fill: true, pointRadius: 2 }]},
+            data: { datasets: [{ data: [], borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', fill: true, pointRadius: 1, tension: 0.2 }]},
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: { x: { type: 'linear', title: { display: true, text: 'Time', color: '#8b949e' } }, y: { beginAtZero: true } },
+                scales: { 
+                    x: { type: 'linear', title: { display: true, color: '#8b949e' }, grid: { color: '#222' } }, 
+                    y: { beginAtZero: true, grid: { color: '#222' }, title: { display: true, text: 'CPM', color: '#8b949e' } } 
+                },
                 plugins: { legend: { display: false } }, animation: false
             }
         });
     }
 
-    function clearData() { if(confirm("Reset all?")) location.reload(); }
-    
     function downloadCSV() {
         let csv = "Time(min),RawCPM,CorrectedCPM\n";
         document.querySelectorAll("#logBody tr").forEach(tr => {
@@ -258,7 +323,7 @@
         let blob = new Blob([csv], { type: 'text/csv' });
         let a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'radiation_results.csv';
+        a.download = 'half_life_results.csv';
         a.click();
     }
 </script>
