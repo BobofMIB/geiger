@@ -1,170 +1,233 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AQA Geiger Master</title>
+    <title>Radiation Pro: Lab Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: system-ui; background: #0a0a0a; color: #eee; padding: 15px; }
-        .card { background: #181818; padding: 15px; border-radius: 10px; border: 1px solid #333; margin-bottom: 15px; }
-        .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
-        .tabs button { flex: 1; padding: 12px; background: #333; color: #aaa; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; }
-        .tabs button.active { background: #ffdd57; color: #000; }
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
-        .stat-box { background: #111; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #222; }
-        .label { font-size: 0.65em; color: #00d1b2; text-transform: uppercase; }
-        .value { font-size: 1.5em; font-weight: bold; font-family: monospace; }
-        .ctrl-btn { width: 100%; padding: 12px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
-        .btn-start { background: #00d1b2; color: #000; }
-        .btn-stop { background: #ff3860; color: #fff; }
-        canvas { max-height: 220px; margin-top: 15px; }
-        .hidden { display: none; }
+        :root { --bg: #0d1117; --card: #161b22; --accent: #39ff14; --text: #c9d1d9; --danger: #f85149; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 600px; }
+        
+        .card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #30363d; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        
+        .btn { width: 100%; padding: 16px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-ble { background: var(--accent); color: #000; margin-bottom: 15px; font-size: 1.1em; }
+        .btn-success { background: #2ea44f !important; color: white !important; }
+        .btn-reset { background: transparent; color: var(--text); border: 1px solid #555; padding: 10px; font-size: 0.8em; }
+        .btn-reset:hover { border-color: var(--danger); color: var(--danger); }
+
+        .label { font-size: 0.7em; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; text-align: center; }
+        
+        .cpm-display { font-size: 6em; text-align: center; font-weight: 800; margin: 0; color: var(--accent); font-family: monospace; line-height: 1; text-shadow: 0 0 15px rgba(57, 255, 20, 0.2); transition: color 0.1s; }
+        .flash { color: #fff !important; text-shadow: 0 0 30px #fff !important; } /* Pulse animation */
+        
+        .stats-box { background: #000; padding: 15px; border-radius: 8px; border: 1px solid #333; text-align: center; }
+        .stats-val { font-size: 2em; color: #fff; font-family: monospace; font-weight: bold; }
+        
+        .control-bar { display: flex; justify-content: space-between; align-items: center; background: #000; padding: 10px 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 15px; }
+        .audio-toggle { display: flex; align-items: center; gap: 10px; font-size: 0.9em; cursor: pointer; }
+        input[type="checkbox"] { accent-color: var(--accent); scale: 1.2; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="card" style="display:flex; justify-content: space-between; align-items: center;">
-    <div style="color:#ffdd57; font-weight:bold;">AQA GEIGER MASTER</div>
-    <button id="bleBtn" onclick="connectBLE()" style="background:#00d1b2; border:none; padding:8px 15px; border-radius:4px; font-weight:bold;">CONNECT</button>
-</div>
+<div class="container">
+    <button id="bleBtn" class="btn btn-ble" onclick="connectBLE()">CONNECT TO NANO S3</button>
 
-<div class="card" style="border-color: #00d1b2;">
-    <div class="label">Step 1: Background Count (60s)</div>
-    <div class="stats-grid" style="margin-top:10px;">
-        <div class="stat-box"><div class="label">Timer</div><div id="bgTimer" class="value">60s</div></div>
-        <div class="stat-box"><div class="label">Counts</div><div id="bgTotal" class="value">0</div></div>
-        <div class="stat-box"><div class="label">Rate (CPS)</div><div id="bgRateDisp" class="value">0.00</div></div>
+    <div class="control-bar">
+        <label class="audio-toggle">
+            <input type="checkbox" id="audioTog" checked> Enable Audio Clicks
+        </label>
+        <div style="font-size: 0.8em; color: #8b949e;">Status: <span id="connStatus" style="color:var(--danger)">OFFLINE</span></div>
     </div>
-    <button id="bgBtn" class="ctrl-btn btn-start" onclick="startBackground()">START CALIBRATION</button>
-</div>
 
-<div class="tabs">
-    <button id="tab1" class="active" onclick="setTab('measure')">Measurements</button>
-    <button id="tab2" onclick="setTab('inverse')">Inverse Square</button>
-    <button id="tab3" onclick="setTab('decay')">Decay Curve</button>
-</div>
-
-<div id="panel_measure" class="card">
-    <div class="stats-grid">
-        <div class="stat-box"><div class="label">Rate (CPS)</div><div id="mRate" class="value">0.0</div></div>
-        <div class="stat-box" style="border: 1px solid #ffdd57;"><div class="label">% Absorbed</div><div id="mAbs" class="value">0%</div></div>
-        <div class="stat-box"><div class="label">Time</div><div id="mTime" class="value">0s</div></div>
+    <!-- Main Readout -->
+    <div class="card" id="readoutCard">
+        <div class="label">Rolling CPM (Counts Per Minute)</div>
+        <div id="cpmVal" class="cpm-display">0</div>
     </div>
-    <div style="display:flex; gap:10px;">
-        <button id="mBtn" class="ctrl-btn btn-start" onclick="toggleMeasure()" style="flex:2">START SAMPLING</button>
-        <button onclick="setRef()" class="ctrl-btn" style="flex:1; background:#444; color:#fff; font-size:0.7em;">SET REF (100%)</button>
-    </div>
-</div>
 
-<div id="panel_inverse" class="card hidden">
-    <div style="display:flex; gap:10px; margin-bottom:15px;">
-        <input type="number" id="distIn" value="10" style="width:60px; background:#000; color:#fff; border:1px solid #444; padding:5px;">
-        <button onclick="recordInverse()" class="btn-start" style="flex:1; border-radius:4px; border:none; font-weight:bold;">RECORD DISTANCE</button>
+    <!-- Secondary Stats -->
+    <div class="grid-2">
+        <div class="card stats-box">
+            <div class="label">Total Counts</div>
+            <div id="totalVal" class="stats-val">0</div>
+        </div>
+        <div class="card stats-box">
+            <div class="label">Elapsed Time</div>
+            <div id="timeVal" class="stats-val">00:00</div>
+        </div>
     </div>
-    <canvas id="invChart"></canvas>
-</div>
 
-<div id="panel_decay" class="card hidden">
-    <button id="dBtn" class="ctrl-btn btn-start" onclick="toggleDecay()">START LOGGING</button>
-    <canvas id="decayChart"></canvas>
+    <!-- Graph -->
+    <div class="card">
+        <div class="label">Radiation Trend (CPM)</div>
+        <canvas id="radChart" style="margin-top:10px; height: 200px;"></canvas>
+        <button class="btn btn-reset" style="margin-top: 15px; width: 100%;" onclick="resetData()">RESET EXPERIMENT</button>
+    </div>
 </div>
 
 <script>
-    let counts = 0, bgRate = 0, refRate = 0, currentTab = 'measure';
-    let bleChar, mInt, dInt, chartInv, chartDecay;
-    let invPoints = [], decayPoints = [];
+    let pDataChar, radChart;
+    let totalCounts = 0;
+    let startTime = null;
+    let timerInterval = null;
+    let pulseTimestamps = []; // Stores timestamps of every click for 60 seconds
+    let graphHistory = [];
+    
+    // Audio Context for the Geiger "Tick"
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    function setTab(t) {
-        currentTab = t;
-        ['measure','inverse','decay'].forEach(p => document.getElementById('panel_'+p).classList.toggle('hidden', p!==t));
-        ['tab1','tab2','tab3'].forEach((b,i) => document.getElementById(b).classList.toggle('active', ['measure','inverse','decay'][i]===t));
+    function playClick() {
+        if (!document.getElementById('audioTog').checked) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(4000, audioCtx.currentTime); // High pitched click
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.05); // Rapid decay
+        
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.05);
     }
 
     async function connectBLE() {
-        const device = await navigator.bluetooth.requestDevice({ filters: [{ name: 'NanoPhys_S3' }], optionalServices: ["19b10000-e8f2-537e-4f6c-d104768a1214"] });
-        const server = await device.gatt.connect();
-        const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
-        const dataC = await service.getCharacteristic("19b10001-e8f2-537e-4f6c-d104768a1214");
-        document.getElementById('bleBtn').innerText = "ONLINE";
-        await dataC.startNotifications();
-        dataC.addEventListener('characteristicvaluechanged', e => {
-            const str = new TextDecoder().decode(e.target.value);
-            if(str === "RAD:1") counts++;
-        });
+        try {
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'NanoPhys_S3' }],
+                optionalServices: ["19b10000-e8f2-537e-4f6c-d104768a1214"]
+            });
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService("19b10000-e8f2-537e-4f6c-d104768a1214");
+            pDataChar = await service.getCharacteristic("19b10001-e8f2-537e-4f6c-d104768a1214");
+
+            // We don't send a MODE command here because your Geiger interrupt runs universally in the background!
+
+            await pDataChar.startNotifications();
+            pDataChar.addEventListener('characteristicvaluechanged', (e) => {
+                let str = new TextDecoder().decode(e.target.value).trim();
+                
+                // BULLETPROOF PARSING: If high radiation sends "RAD:1RAD:1", this counts both.
+                let hits = (str.match(/RAD:1/g) || []).length;
+                for(let i=0; i<hits; i++) {
+                    registerPulse();
+                }
+            });
+
+            // UI Updates
+            document.getElementById('bleBtn').innerText = "SYSTEM ACTIVE";
+            document.getElementById('bleBtn').classList.add('btn-success');
+            document.getElementById('connStatus').innerText = "ONLINE";
+            document.getElementById('connStatus').style.color = "var(--accent)";
+            
+            initExperiment();
+        } catch (err) { 
+            console.log(err);
+            alert("Connection Failed. Make sure Nano S3 is powered and not connected to another tab.");
+        }
     }
 
-    function startBackground() {
-        counts = 0; let s = 60;
-        let itv = setInterval(() => {
-            s--; document.getElementById('bgTimer').innerText = s+"s";
-            document.getElementById('bgTotal').innerText = counts;
-            if(s<=0) {
-                clearInterval(itv); bgRate = counts/60;
-                document.getElementById('bgRateDisp').innerText = bgRate.toFixed(2);
-                document.getElementById('bgBtn').innerText = "CALIBRATED";
-                counts = 0;
+    function registerPulse() {
+        let now = Date.now();
+        pulseTimestamps.push(now);
+        totalCounts++;
+        document.getElementById('totalVal').innerText = totalCounts;
+        
+        playClick();
+
+        // Visual Flash
+        const cpmEl = document.getElementById('cpmVal');
+        cpmEl.classList.add('flash');
+        setTimeout(() => cpmEl.classList.remove('flash'), 50);
+    }
+
+    function calculateCPM() {
+        let now = Date.now();
+        // Remove pulses older than 60 seconds (60000 ms)
+        pulseTimestamps = pulseTimestamps.filter(t => (now - t) <= 60000);
+        
+        // If experiment has been running less than a minute, extrapolate CPM
+        let elapsedTotal = (now - startTime) / 1000;
+        let cpm = 0;
+        
+        if (elapsedTotal < 60 && elapsedTotal > 0) {
+            cpm = Math.floor((totalCounts / elapsedTotal) * 60); // Extrapolate
+        } else {
+            cpm = pulseTimestamps.length; // True rolling 60s window
+        }
+        
+        document.getElementById('cpmVal').innerText = cpm;
+        return cpm;
+    }
+
+    function updateTimer() {
+        if (!startTime) return;
+        let diff = Math.floor((Date.now() - startTime) / 1000);
+        let m = String(Math.floor(diff / 60)).padStart(2, '0');
+        let s = String(diff % 60).padStart(2, '0');
+        document.getElementById('timeVal').innerText = `${m}:${s}`;
+    }
+
+    function initExperiment() {
+        resetData();
+        initGraph();
+        
+        // Main Logic Loop (Runs every 1 second)
+        timerInterval = setInterval(() => {
+            updateTimer();
+            let currentCPM = calculateCPM();
+            
+            // Update Graph every 2 seconds to keep it clean
+            let elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+            if (elapsedSec % 2 === 0) {
+                updateGraph(elapsedSec, currentCPM);
             }
         }, 1000);
     }
 
-    function toggleMeasure() {
-        if(!mInt) {
-            counts = 0; let start = Date.now();
-            mInt = setInterval(() => {
-                let elap = (Date.now()-start)/1000;
-                let curRate = (counts/elap) - bgRate;
-                document.getElementById('mRate').innerText = curRate.toFixed(1);
-                document.getElementById('mTime').innerText = elap.toFixed(0)+"s";
-                if(refRate > 0) {
-                    let abs = (1 - (curRate/refRate)) * 100;
-                    document.getElementById('mAbs').innerText = Math.max(0, abs).toFixed(1) + "%";
-                }
-            }, 1000);
-            document.getElementById('mBtn').innerText = "STOP SAMPLING";
-        } else { clearInterval(mInt); mInt = null; document.getElementById('mBtn').innerText = "START SAMPLING"; }
+    function resetData() {
+        totalCounts = 0;
+        pulseTimestamps = [];
+        graphHistory = [];
+        startTime = Date.now();
+        document.getElementById('totalVal').innerText = "0";
+        document.getElementById('cpmVal').innerText = "0";
+        document.getElementById('timeVal').innerText = "00:00";
+        if (radChart) {
+            radChart.data.datasets[0].data = graphHistory;
+            radChart.update();
+        }
     }
 
-    function setRef() {
-        let elap = parseInt(document.getElementById('mTime').innerText);
-        refRate = (counts/elap) - bgRate;
-        alert("Reference set: " + refRate.toFixed(2) + " CPS");
-    }
-
-    function recordInverse() {
-        let d = parseFloat(document.getElementById('distIn').value);
-        invPoints.push({x: d, y: counts}); // Using raw count for simplicity in 10s intervals
-        counts = 0;
-        updateInvChart();
-    }
-
-    function toggleDecay() {
-        if(!dInt) {
-            counts = 0; let start = Date.now();
-            dInt = setInterval(() => {
-                let elap = (Date.now()-start)/1000;
-                decayPoints.push({x: elap, y: counts});
-                updateDecayChart();
-            }, 5000);
-            document.getElementById('dBtn').innerText = "STOP LOGGING";
-        } else { clearInterval(dInt); dInt = null; }
-    }
-
-    function updateInvChart() {
-        if(chartInv) chartInv.destroy();
-        chartInv = new Chart(document.getElementById('invChart'), {
-            type: 'scatter',
-            data: { datasets: [{ label: 'Counts', data: invPoints, backgroundColor: '#00d1b2' }]},
-            options: { scales: { x: { title: {display:true, text:'Distance (cm)'}} }}
-        });
-    }
-
-    function updateDecayChart() {
-        if(chartDecay) chartDecay.destroy();
-        chartDecay = new Chart(document.getElementById('decayChart'), {
+    function initGraph() {
+        if (radChart) radChart.destroy();
+        const ctx = document.getElementById('radChart').getContext('2d');
+        radChart = new Chart(ctx, {
             type: 'line',
-            data: { datasets: [{ label: 'Decay', data: decayPoints, borderColor: '#ffdd57', tension: 0.3 }]},
-            options: { scales: { x: { title: {display:true, text:'Time (s)'}} }}
+            data: { datasets: [{ label: 'CPM', data: graphHistory, borderColor: '#39ff14', backgroundColor: 'rgba(57, 255, 20, 0.1)', tension: 0.4, fill: true, pointRadius: 0 }]},
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { type: 'linear', title: { display: true, text: 'Seconds', color: '#8b949e' }, grid: { color: '#333' }, ticks: { color: '#8b949e' } },
+                    y: { min: 0, suggestedMax: 50, title: { display: true, text: 'CPM', color: '#8b949e' }, grid: { color: '#333' }, ticks: { color: '#8b949e' } }
+                },
+                plugins: { legend: { display: false } },
+                animation: false
+            }
         });
+    }
+
+    function updateGraph(timeStr, cpmVal) {
+        if (!radChart) return;
+        graphHistory.push({ x: timeStr, y: cpmVal });
+        if (graphHistory.length > 150) graphHistory.shift(); // Keep last ~5 mins of data points
+        radChart.update('none');
     }
 </script>
 </body>
